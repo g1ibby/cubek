@@ -11,7 +11,8 @@ use crate::definition::{MatrixLayout, StageIdent};
 /// Computes a tile matmul where each unit of the plane accumulates an interleaved (by plane_dim)
 /// partial dot-product over K.
 ///
-/// Important: the plane must combine those contributions at the end of the global matmul.
+/// The plane combines those contributions only at the end of the global matmul.
+/// The caveat is that each unit of the plane stores m*n accumulators for the whole lifetime of the matmul
 pub struct InterleavedDeferredMatmul {}
 
 #[derive(CubeType)]

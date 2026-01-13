@@ -1,7 +1,7 @@
 use cubecl::prelude::*;
 
 use crate::components::tile::{
-    StridedTile,
+    StridedTile, TileConfig as _,
     interleaved_eager::{InterleavedEagerAccumulator, config::InterleavedEagerMatmulConfig},
 };
 
@@ -18,19 +18,18 @@ impl InterleavedStageWriter {
         acc: &InterleavedEagerAccumulator<A>,
         #[comptime] config: InterleavedEagerMatmulConfig,
     ) {
-        if UNIT_POS_X == 0 {
-            let out_line_size = tile.stage.line_size().comptime() as u32;
+        assert!(
+            tile.stage.line_size().comptime() == 1,
+            "out stage line size should be 1, got {:?}",
+            tile.stage.line_size().comptime()
+        );
 
-            #[unroll]
-            for i in 0..config.shared.tile_size.mn() / out_line_size {
-                let offs = tile.stage_offset(i);
-                let mut line = Line::empty(out_line_size as usize);
-                #[unroll]
-                for j in 0..out_line_size {
-                    line[j as usize] = acc.array[(i * out_line_size + j) as usize];
-                }
-                tile.stage[offs as usize] = Line::cast_from(line);
-            }
+        #[unroll]
+        for i in 0..config.num_local_accumulators() {
+            let index = i as u32 * config.plane_dim() + UNIT_POS_X;
+            let offs = tile.stage_offset(index);
+            let elem = acc.array[i];
+            tile.stage[offs as usize] = Line::cast_from(elem);
         }
     }
 }

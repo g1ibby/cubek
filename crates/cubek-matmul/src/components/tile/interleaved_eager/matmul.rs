@@ -1,5 +1,6 @@
 use cubecl::prelude::*;
 
+use crate::components::tile::TileConfig as _;
 use crate::components::tile::interleaved_eager::config::InterleavedEagerMatmulConfig;
 use crate::components::tile::interleaved_eager::reader::InterleavedStageReader;
 use crate::components::tile::interleaved_eager::writer::InterleavedStageWriter;
@@ -11,7 +12,8 @@ use crate::definition::{MatrixLayout, StageIdent};
 /// Computes a tile matmul where each unit of the plane accumulates an interleaved (by plane_dim)
 /// partial dot-product over K.
 ///
-/// Important: the plane must combine those contributions at the end of the global matmul.
+/// The plane combines those contributions at every element.
+/// The caveat is that each a plane_sum is called for every accumulator element.
 pub struct InterleavedEagerMatmul {}
 
 #[derive(CubeType)]
@@ -41,23 +43,6 @@ impl<E: Numeric> InterleavedEagerFragment<E> {
 /// combined later via `consolidate`.
 pub struct InterleavedEagerAccumulator<E: Numeric> {
     pub array: Array<E>,
-    #[cube(comptime)]
-    pub layout: MatrixLayout,
-    #[cube(comptime)]
-    m: usize,
-    #[cube(comptime)]
-    n: usize,
-}
-
-#[cube]
-impl<E: Numeric> InterleavedEagerAccumulator<E> {
-    /// Every unit will hold the sum
-    pub fn consolidate(&mut self) {
-        #[unroll]
-        for i in 0..comptime!(self.m * self.n) {
-            self.array[i] = plane_sum(self.array[i])
-        }
-    }
 }
 
 #[cube]
@@ -90,12 +75,24 @@ impl<L: Numeric, R: Numeric, A: Numeric> TileMatmul<L, R, A> for InterleavedEage
         for m_ in 0..m {
             #[unroll]
             for n_ in 0..n {
+                let mut current_acc = A::cast_from(0);
+
                 #[unroll]
                 for k_ in 0..local_k {
                     let lhs_elem = A::cast_from(lhs.get(m_, k_));
                     let rhs_elem = A::cast_from(rhs.get(k_, n_));
-                    acc.array[m_ * n + n_] += lhs_elem * rhs_elem;
+                    current_acc += lhs_elem * rhs_elem;
                 }
+
+                let plane_summed = plane_sum(current_acc);
+
+                let acc_index = m_ * n + n_;
+                let plane_dim = config.plane_dim() as usize;
+                let local_acc_index = acc_index / plane_dim;
+                let storing_unit = acc_index % plane_dim;
+
+                let is_storing_unit = A::cast_from(UNIT_POS_X as usize == storing_unit);
+                acc.array[local_acc_index] += is_storing_unit * plane_summed;
             }
         }
     }
@@ -132,13 +129,10 @@ impl<L: Numeric, R: Numeric, A: Numeric> TileMatmul<L, R, A> for InterleavedEage
         #[comptime] layout: MatrixLayout,
         #[comptime] config: Self::Config,
     ) -> Self::AccFragment {
-        let m = config.elements_per_unit_m();
-        let n = config.elements_per_unit_n();
+        // hardcoded to row major right now
+        assert!(matches!(layout, MatrixLayout::RowMajor));
         InterleavedEagerAccumulator::<A> {
-            array: Array::new(m * n),
-            layout,
-            m,
-            n,
+            array: Array::new(config.num_local_accumulators()),
         }
     }
 
@@ -171,7 +165,6 @@ impl<L: Numeric, R: Numeric, A: Numeric> TileMatmul<L, R, A> for InterleavedEage
         acc: &mut Self::AccFragment,
         #[comptime] config: Self::Config,
     ) {
-        acc.consolidate();
         InterleavedStageWriter::store_fragment(tile, acc, config)
     }
 }

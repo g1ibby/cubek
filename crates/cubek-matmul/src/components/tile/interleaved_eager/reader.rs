@@ -69,7 +69,7 @@ impl InterleavedStageReader {
         fragment: &mut InterleavedEagerAccumulator<A>,
         #[comptime] config: InterleavedEagerMatmulConfig,
     ) {
-        let size = config.elements_per_unit_m() * config.elements_per_unit_n();
+        let size = config.num_local_accumulators();
 
         for i in 0..size {
             fragment.array[i] = A::cast_from(*value);

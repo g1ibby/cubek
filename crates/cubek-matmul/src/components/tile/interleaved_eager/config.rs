@@ -12,6 +12,20 @@ impl InterleavedEagerMatmulConfig {
     pub fn from_shared_tile_config(config: SharedTileConfig) -> Self {
         Self { shared: config }
     }
+
+    pub fn num_local_accumulators(&self) -> usize {
+        let plane_dim = self.plane_dim() as usize;
+        let acc_size = self.elements_per_unit_m() * self.elements_per_unit_n();
+        assert!(
+            acc_size.is_multiple_of(plane_dim),
+            "acc_size={:?} should me a multiple of plane_dim={:?}",
+            acc_size,
+            plane_dim
+        );
+
+        acc_size / plane_dim
+    }
+
     pub fn elements_per_unit_m(&self) -> usize {
         self.elements_in_tile_m() as usize
     }
