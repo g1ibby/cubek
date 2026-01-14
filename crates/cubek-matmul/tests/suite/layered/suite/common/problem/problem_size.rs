@@ -14,6 +14,8 @@ mod g8x8x8 {
             layouts.0,
             layouts.1,
             MatrixLayout::RowMajor,
+            None,
+            None,
             elems(),
         )
     }
@@ -37,6 +39,8 @@ mod g16x8x16 {
             layouts.0,
             layouts.1,
             MatrixLayout::RowMajor,
+            None,
+            None,
             elems(),
         )
     }
@@ -60,6 +64,8 @@ mod g256x256x256 {
             layouts.0,
             layouts.1,
             MatrixLayout::RowMajor,
+            None,
+            None,
             elems(),
         )
     }
@@ -84,6 +90,8 @@ mod g100x100x100 {
             layouts.0,
             layouts.1,
             MatrixLayout::RowMajor,
+            None,
+            None,
             elems(),
         )
     }
@@ -109,6 +117,8 @@ mod g100x99x100 {
             layouts.0,
             layouts.1,
             MatrixLayout::RowMajor,
+            None,
+            None,
             elems(),
         )
     }
@@ -134,6 +144,8 @@ mod g100x100x99 {
             layouts.0,
             layouts.1,
             MatrixLayout::RowMajor,
+            None,
+            None,
             elems(),
         )
     }
@@ -159,6 +171,8 @@ mod g23x1x17 {
             layouts.0,
             layouts.1,
             MatrixLayout::RowMajor,
+            None,
+            None,
             elems(),
         )
     }
@@ -183,6 +197,8 @@ mod g1x256x256 {
             layouts.0,
             layouts.1,
             MatrixLayout::RowMajor,
+            None,
+            None,
             elems(),
         )
     }
@@ -207,6 +223,8 @@ mod batched_vecmat {
             layouts.0,
             layouts.1,
             MatrixLayout::RowMajor,
+            None,
+            None,
             elems(),
         )
     }
