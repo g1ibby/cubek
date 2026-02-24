@@ -43,9 +43,7 @@ pub trait FragmentLayout: CubeType {
 #[cube]
 pub trait FragmentSoftmax<E: Float>: CubeType {
     type Layout: FragmentLayout;
-    type SoftmaxScore: CubeType;
     type SoftmaxRowFormat: RowwiseFormat<E, Layout = Self::Layout>;
-    type SoftmaxVal: CubeType;
 
     /// Get the softmax fragment in row format
     fn rowwise_mut(&mut self) -> &mut Self::SoftmaxRowFormat;
@@ -82,7 +80,7 @@ pub trait RowwiseFormat<E: Float> {
 #[cube]
 pub trait FragmentAccumulator<E: Float> {
     /// Scale each element in a row by a value for this row
-    fn rowwise_scale(&mut self, val: &RowWise<E>);
+    fn rowwise_scale(&mut self, scale: &RowWise<E>);
 
     /// Zeroes out the fragment
     fn zero(&mut self);

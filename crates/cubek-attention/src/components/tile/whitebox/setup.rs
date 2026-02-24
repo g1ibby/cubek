@@ -2,7 +2,7 @@ use cubecl::ir::DeviceProperties;
 use cubek_matmul::components::CubeDimResource;
 
 use crate::components::tile::TileAttentionFamily;
-use crate::components::tile::unit_register::UnitRegisterTileAttention;
+use crate::components::tile::whitebox::attention::WhiteboxAcceleratedTileAttention;
 use crate::components::tile::{SharedTileAttentionConfig, TileAttentionConfig};
 use crate::definition::{
     AttentionBlueprint, AttentionElems, AttentionPrecision, AttentionSetupError, AttentionTileSize,
@@ -10,11 +10,11 @@ use crate::definition::{
 };
 
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
-pub struct UnitTileAttentionConfig {
+pub struct WhiteboxAcceleratedAttentionMatmulConfig {
     pub shared: SharedTileAttentionConfig,
 }
 
-impl TileAttentionConfig for UnitTileAttentionConfig {
+impl TileAttentionConfig for WhiteboxAcceleratedAttentionMatmulConfig {
     fn plane_dim(&self) -> u32 {
         self.shared.plane_dim
     }
@@ -40,13 +40,13 @@ impl TileAttentionConfig for UnitTileAttentionConfig {
     }
 }
 
-impl TileAttentionFamily for UnitRegisterTileAttention {
-    type TileAttention<F: AttentionPrecision> = UnitRegisterTileAttention;
+impl TileAttentionFamily for WhiteboxAcceleratedTileAttention {
+    type TileAttention<F: AttentionPrecision> = WhiteboxAcceleratedTileAttention;
 
-    type Config = UnitTileAttentionConfig;
+    type Config = WhiteboxAcceleratedAttentionMatmulConfig;
 
     fn computation_resources() -> Result<CubeDimResource, InvalidConfigError> {
-        Ok(CubeDimResource::Units(1))
+        Ok(CubeDimResource::Planes(1))
     }
 
     fn expand_config(
@@ -54,11 +54,11 @@ impl TileAttentionFamily for UnitRegisterTileAttention {
         blueprint: &AttentionBlueprint,
         _dtypes: &AttentionElems,
     ) -> Result<Self::Config, AttentionSetupError> {
-        Ok(UnitTileAttentionConfig {
+        Ok(WhiteboxAcceleratedAttentionMatmulConfig {
             shared: SharedTileAttentionConfig {
                 plane_dim: blueprint.plane_dim,
                 attention_tile_size: blueprint.tiling_scheme.tile_size,
-                num_planes: blueprint.tiling_scheme.stage_size.seq_q / blueprint.plane_dim,
+                num_planes: blueprint.tiling_scheme.stage_size.seq_q,
                 causal_mask: blueprint.causal,
                 materialized_mask: blueprint.masked,
             },

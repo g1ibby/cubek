@@ -5,8 +5,8 @@ use cubek_matmul::components::CubeDimResource;
 use crate::components::tile::SharedTileAttentionConfig;
 use crate::components::tile::TileAttentionConfig;
 use crate::components::tile::TileAttentionFamily;
-use crate::components::tile::accelerated::BlackboxAcceleratedTileAttention;
-use crate::components::tile::accelerated::local_tile::InnerLayout;
+use crate::components::tile::blackbox::BlackboxAcceleratedTileAttention;
+use crate::components::tile::blackbox::local_tile::InnerLayout;
 use crate::definition::AttentionAvailabilityError;
 use crate::definition::AttentionBlueprint;
 use crate::definition::AttentionElems;
@@ -55,10 +55,6 @@ impl TileAttentionFamily for BlackboxAcceleratedTileAttention {
     type TileAttention<F: AttentionPrecision> = BlackboxAcceleratedTileAttention;
 
     type Config = BlackboxAcceleratedAttentionMatmulConfig;
-
-    fn requires_accelerator() -> bool {
-        false
-    }
 
     fn computation_resources() -> Result<CubeDimResource, InvalidConfigError> {
         Ok(CubeDimResource::Planes(1))

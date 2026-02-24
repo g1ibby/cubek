@@ -2,8 +2,8 @@ use cubecl;
 use cubecl::prelude::*;
 use cubek_matmul::definition::TileSize;
 
-use crate::components::tile::accelerated::local_tile::{LocalTile, LocalTileLayout};
-use crate::components::tile::accelerated::setup::BlackboxAcceleratedAttentionMatmulConfig;
+use crate::components::tile::blackbox::local_tile::{LocalTile, LocalTileLayout};
+use crate::components::tile::blackbox::setup::BlackboxAcceleratedAttentionMatmulConfig;
 use crate::components::tile::{FragmentAccumulator, FragmentAccumulatorExpand};
 use crate::components::tile::{FragmentSoftmax, FragmentSoftmaxExpand};
 use crate::components::tile::{RowWise, TileAttentionConfig as _};
@@ -70,9 +70,7 @@ impl<E: Float> HybridFragment<E> {
 #[cube]
 impl<E: Float> FragmentSoftmax<E> for HybridFragment<E> {
     type Layout = LocalTileLayout;
-    type SoftmaxScore = cmma::Matrix<E>;
     type SoftmaxRowFormat = LocalTile<E>;
-    type SoftmaxVal = cmma::Matrix<E>;
 
     fn rowwise_mut(&mut self) -> &mut Self::SoftmaxRowFormat {
         cmma::store(

@@ -2,10 +2,10 @@ use cubecl;
 use cubecl::prelude::*;
 use cubek_matmul::components::tile::StridedTile;
 
-use crate::components::tile::accelerated::hybrid_fragment::HybridFragment;
-use crate::components::tile::accelerated::local_tile::LocalTile;
-use crate::components::tile::accelerated::local_tile::LocalTileLayout;
-use crate::components::tile::accelerated::setup::BlackboxAcceleratedAttentionMatmulConfig;
+use crate::components::tile::blackbox::hybrid_fragment::HybridFragment;
+use crate::components::tile::blackbox::local_tile::LocalTile;
+use crate::components::tile::blackbox::local_tile::LocalTileLayout;
+use crate::components::tile::blackbox::setup::BlackboxAcceleratedAttentionMatmulConfig;
 use crate::components::tile::{TileAttention, TileAttentionConfig as _};
 use crate::definition::AttentionPrecision;
 use crate::definition::attention_types::*;

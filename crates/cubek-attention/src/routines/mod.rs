@@ -2,6 +2,8 @@
 pub mod blackbox_accelerated;
 /// Unit attention
 pub mod unit;
+/// Accelerated and computing rowwise operations directly on fragments
+pub mod whitebox_accelerated;
 
 mod base;
 

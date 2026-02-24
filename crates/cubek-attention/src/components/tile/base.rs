@@ -108,9 +108,6 @@ pub trait TileAttentionFamily: Send + Sync + 'static {
     /// The configuration type associated with this matmul family.
     type Config: TileAttentionConfig;
 
-    /// Returns whether this tile matmul requires specialized hardware accelerators (e.g., tensor cores).
-    fn requires_accelerator() -> bool;
-
     /// Returns the compute resources required to run this tile matmul.
     fn computation_resources() -> Result<CubeDimResource, InvalidConfigError>;
 
