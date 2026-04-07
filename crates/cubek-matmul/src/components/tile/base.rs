@@ -1,12 +1,15 @@
-use cubecl::{features::MmaConfig, ir::DeviceProperties};
-use cubecl::{ir::StorageType, prelude::*};
-use cubek_std::tile::{Tile, TileKind, TileMut};
-use cubek_std::{InvalidConfigError, MatrixLayout, TileSize};
+use cubecl::{
+    features::MmaConfig,
+    ir::{DeviceProperties, StorageType},
+    prelude::*,
+};
+use cubek_std::{
+    InvalidConfigError, MatrixLayout, TileSize,
+    tile::{Tile, TileKind, TileMut},
+};
 
-use crate::components::resource::CubeDimResource;
-use crate::components::tile::TileConfig;
-use crate::definition::{MatmulElems, TilingBlueprint};
-use crate::definition::{MatmulSetupError, MatmulVectorSizes};
+use crate::components::{resource::CubeDimResource, tile::TileConfig};
+use crate::definition::{MatmulElems, MatmulSetupError, MatmulVectorSizes, TilingBlueprint};
 
 /// A family of [TileMatmul] implementations that operate with any precision.
 pub trait TileMatmulFamily: Send + Sync + 'static {
@@ -18,7 +21,7 @@ pub trait TileMatmulFamily: Send + Sync + 'static {
             L,
             R,
             A,
-            LhsTile = Self::LhsTile,
+            LhsInput = Self::LhsTile,
             RhsTile = Self::RhsTile,
             AccTile = Self::AccTile,
             OutTile = Self::OutTile,
@@ -80,6 +83,26 @@ pub trait TileMatmulFamily: Send + Sync + 'static {
     ) -> Result<(), MatmulSetupError>;
 }
 
+pub trait TileIO {
+    /// Tile for the lhs data
+    type Lhs: TileKind;
+    /// Tile for the rhs data
+    type Rhs: TileKind;
+    /// Tile for the accumulator data
+    type Acc: TileKind;
+    /// Tile for the output data
+    type Out: TileKind<ReadWrite>;
+}
+
+pub struct StandardTileIO {}
+
+impl TileIO for StandardTileIO {
+    type Lhs = cubek_std::tile::Strided;
+    type Rhs = cubek_std::tile::Strided;
+    type Acc = Option<cubek_std::tile::Strided>;
+    type Out = cubek_std::tile::Strided;
+}
+
 /// Provides matrix multiplication operations at the tile level.
 ///
 /// At the tile level,
@@ -96,14 +119,14 @@ pub trait TileMatmul<L: Numeric, R: Numeric, A: Numeric>: 'static + Send + Sync 
     type Config: TileConfig;
 
     /// Contains Lhs data for computation
-    type LhsFragment: CubeType;
+    type LhsContainer: CubeType;
     /// Contains Rhs data for computation
     type RhsFragment: CubeType;
     /// Contains and accumulates results of the Tile Matmul execution
     type AccFragment: CubeType;
 
     /// Tile for the lhs data
-    type LhsTile: TileKind;
+    type LhsInput: TileKind;
     /// Tile for the rhs data
     type RhsTile: TileKind;
     /// Tile for the accumulator data
@@ -113,7 +136,7 @@ pub trait TileMatmul<L: Numeric, R: Numeric, A: Numeric>: 'static + Send + Sync 
 
     /// Executes the matrix multiplication of Lhs and Rhs, adding the result to the accumulator
     fn execute(
-        lhs: &Self::LhsFragment,
+        lhs: &Self::LhsContainer,
         rhs: &Self::RhsFragment,
         out: &mut Self::AccFragment,
         #[comptime] config: Self::Config,
@@ -128,12 +151,12 @@ pub trait TileMatmul<L: Numeric, R: Numeric, A: Numeric>: 'static + Send + Sync 
     fn allocate_lhs(
         #[comptime] layout: MatrixLayout,
         #[comptime] config: Self::Config,
-    ) -> Self::LhsFragment;
+    ) -> Self::LhsContainer;
 
     /// Load the container of Lhs from tile data
     fn load_lhs<E: Numeric, N: Size>(
-        tile: &Tile<Self::LhsTile, E, N>,
-        lhs: &mut Self::LhsFragment,
+        tile: &Tile<Self::LhsInput, E, N>,
+        lhs: &mut Self::LhsContainer,
         #[comptime] config: Self::Config,
     );
 

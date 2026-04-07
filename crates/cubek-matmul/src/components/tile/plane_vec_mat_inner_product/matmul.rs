@@ -43,20 +43,20 @@ where
     type Config = PlaneVecMatInnerProductConfig;
 
     // One vector per unit in the plane
-    type LhsFragment = VectorContainer<L>;
+    type LhsContainer = VectorContainer<L>;
     // For each n: one vector per unit in the plane
     type RhsFragment = Sequence<VectorContainer<R>>;
 
     // For each n: one vector stored at unit pos 0, that will be reduced to a scalar only when writing at the end
     type AccFragment = Sequence<VectorContainer<A>>;
 
-    type LhsTile = Strided;
+    type LhsInput = Strided;
     type RhsTile = Strided;
     type AccTile = AccTile;
     type OutTile = Strided;
 
     fn execute(
-        lhs: &Self::LhsFragment,
+        lhs: &Self::LhsContainer,
         rhs: &Self::RhsFragment,
         acc: &mut Self::AccFragment,
         #[comptime] config: Self::Config,
@@ -74,7 +74,7 @@ where
     fn allocate_lhs(
         #[comptime] _layout: MatrixLayout,
         #[comptime] config: Self::Config,
-    ) -> Self::LhsFragment {
+    ) -> Self::LhsContainer {
         register_vector_size(config.reduce_vector_size);
         VectorContainer::<L>::new()
     }
@@ -107,7 +107,7 @@ where
 
     fn load_lhs<E: Numeric, N: Size>(
         tile: &StridedTile<E, N>,
-        lhs: &mut Self::LhsFragment,
+        lhs: &mut Self::LhsContainer,
         #[comptime] _config: Self::Config,
     ) {
         VectorStageReader::load_fragment(tile, lhs)

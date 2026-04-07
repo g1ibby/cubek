@@ -122,7 +122,7 @@ pub struct PartitionedStageMatmul<
             <<MP as MatmulTypes>::Lhs as MatrixTypes>::Stage,
             <<MP as MatmulTypes>::Lhs as MatrixTypes>::StageSize,
             ReadOnly,
-            TileKind = TM::LhsTile,
+            TileKind = TM::LhsInput,
         >,
     StageRhs: Stage<
             <<MP as MatmulTypes>::Rhs as MatrixTypes>::Stage,
@@ -162,7 +162,7 @@ where
             <<MP as MatmulTypes>::Lhs as MatrixTypes>::Stage,
             <<MP as MatmulTypes>::Lhs as MatrixTypes>::StageSize,
             ReadOnly,
-            TileKind = TM::LhsTile,
+            TileKind = TM::LhsInput,
         >,
     StageRhs: Stage<
             <<MP as MatmulTypes>::Rhs as MatrixTypes>::Stage,
@@ -192,7 +192,7 @@ where
     type OutStage = StageOut;
 
     type Accumulators = Accumulators<MP, TM>;
-    type LhsTile = Sequence<TM::LhsFragment>;
+    type LhsTile = Sequence<TM::LhsContainer>;
     type RhsTile = RhsTile<TM::RhsFragment>;
 
     fn execute(

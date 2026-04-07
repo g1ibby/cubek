@@ -28,17 +28,17 @@ where
 {
     type Config = SharedTileConfig;
 
-    type LhsFragment = Fragment<L>;
+    type LhsContainer = Fragment<L>;
     type RhsFragment = Fragment<R>;
     type AccFragment = Fragment<A>;
 
-    type LhsTile = Strided;
+    type LhsInput = Strided;
     type RhsTile = Strided;
     type AccTile = AccTile;
     type OutTile = Strided;
 
     fn execute(
-        lhs: &Self::LhsFragment,
+        lhs: &Self::LhsContainer,
         rhs: &Self::RhsFragment,
         out: &mut Self::AccFragment,
         #[comptime] _config: Self::Config,
@@ -49,7 +49,7 @@ where
     fn allocate_lhs(
         #[comptime] layout: MatrixLayout,
         #[comptime] config: Self::Config,
-    ) -> Self::LhsFragment {
+    ) -> Self::LhsContainer {
         let size = config.tile_size;
 
         Fragment::<L> {
@@ -108,10 +108,10 @@ where
 
     fn load_lhs<E: Numeric, N: Size>(
         tile: &StridedTile<E, N>,
-        lhs: &mut Self::LhsFragment,
+        lhs: &mut Self::LhsContainer,
         #[comptime] _config: Self::Config,
     ) {
-        CmmaStageReader::<Self::LhsTile>::load_fragment(
+        CmmaStageReader::<Self::LhsInput>::load_fragment(
             tile,
             &mut lhs.fragment,
             ComptimeOption::new_None(),

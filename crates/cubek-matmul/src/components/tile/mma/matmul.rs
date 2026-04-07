@@ -44,17 +44,17 @@ where
 {
     type Config = MmaMatmulConfig;
 
-    type LhsFragment = MmaFragment<L, NL>;
+    type LhsContainer = MmaFragment<L, NL>;
     type RhsFragment = MmaFragment<R, NR>;
     type AccFragment = MmaFragment<A, NA>;
 
-    type LhsTile = LhsTile;
+    type LhsInput = LhsTile;
     type RhsTile = RhsTile;
     type AccTile = AccTile;
     type OutTile = Strided;
 
     fn execute(
-        lhs: &Self::LhsFragment,
+        lhs: &Self::LhsContainer,
         rhs: &Self::RhsFragment,
         out: &mut Self::AccFragment,
         #[comptime] config: Self::Config,
@@ -72,7 +72,7 @@ where
     fn allocate_lhs(
         #[comptime] layout: MatrixLayout,
         #[comptime] config: Self::Config,
-    ) -> Self::LhsFragment {
+    ) -> Self::LhsContainer {
         let def = mma_definition::<L, R, A>(config);
         register_vector_sizes(def);
         let vector_count = def.vectors_per_lane(MatrixIdent::A);
@@ -113,10 +113,10 @@ where
 
     fn load_lhs<E: Numeric, N: Size>(
         tile: &LhsTile::Tile<E, N>,
-        lhs: &mut Self::LhsFragment,
+        lhs: &mut Self::LhsContainer,
         #[comptime] config: Self::Config,
     ) {
-        MmaStageReader::<Self::LhsTile>::load_fragment(
+        MmaStageReader::<Self::LhsInput>::load_fragment(
             tile,
             &mut lhs.fragment,
             mma_definition::<L, R, A>(config),

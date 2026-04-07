@@ -1,24 +1,20 @@
 use std::marker::PhantomData;
 
-use super::StageBuffer;
-use super::TaskCounter;
-use crate::components::global::multi_stage::JobIterator;
-use crate::components::global::multi_stage::LoadMaxRoundPlaneCount;
-use crate::components::global::read::LoadingJob;
-use crate::components::global::read::LoadingValidation;
-use crate::components::global::read::SyncBarrier;
-use crate::components::global::read::SyncStrategy;
-use crate::components::global::{memory::GlobalIterator, read::PartialLoaderStage};
-use crate::components::stage::LoadStageFamily;
-use crate::components::stage::TilingLayout;
-use crate::components::{
-    global::{SharedGlobalMatmulConfig, multi_stage::JobExecutor},
-    stage::StageConfig,
+use super::{StageBuffer, TaskCounter};
+use crate::{
+    components::{
+        global::{
+            GlobalReaderConfig, SharedGlobalMatmulConfig,
+            memory::GlobalIterator,
+            multi_stage::{JobExecutor, JobIterator, LoadMaxRoundPlaneCount},
+            read::{LoadingJob, LoadingValidation, PartialLoaderStage, SyncBarrier, SyncStrategy},
+        },
+        stage::{LoadStageFamily, StageConfig, TilingLayout},
+    },
+    definition::MatmulTypes,
+    launch::RuntimeConfig,
 };
-use crate::definition::MatmulTypes;
-use crate::{components::global::GlobalReaderConfig, launch::RuntimeConfig};
-use cubecl::prelude::barrier::Barrier;
-use cubecl::prelude::*;
+use cubecl::prelude::{barrier::Barrier, *};
 use cubecl::std::tensor::{View, layout::Coords2d};
 use cubek_std::tile::TileKind;
 
