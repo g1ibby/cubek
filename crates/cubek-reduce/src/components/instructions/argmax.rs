@@ -1,6 +1,6 @@
 use super::{ArgAccumulator, ReduceFamily, ReduceInstruction, lowest_coordinate_matching};
 use crate::components::{
-    instructions::{Accumulator, Item, ReduceRequirements, ReduceStep, Value, AccumulatorFormat},
+    instructions::{Accumulator, AccumulatorFormat, Item, ReduceRequirements, ReduceStep, Value},
     precision::ReducePrecision,
 };
 use cubecl::prelude::*;

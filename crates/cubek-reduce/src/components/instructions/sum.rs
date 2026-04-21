@@ -1,6 +1,6 @@
 use super::{ReduceFamily, ReduceInstruction, ReduceRequirements};
 use crate::components::{
-    instructions::{Accumulator, Item, ReduceStep, Value, AccumulatorFormat},
+    instructions::{Accumulator, AccumulatorFormat, Item, ReduceStep, Value},
     precision::ReducePrecision,
 };
 use cubecl::prelude::*;
