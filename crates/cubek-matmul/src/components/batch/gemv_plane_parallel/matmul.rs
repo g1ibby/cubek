@@ -265,13 +265,11 @@ fn execute_gemv<V: CubePrimitive, M: CubePrimitive, O: CubePrimitive, AccR: Nume
         } else {
             out.write(write_index, sum);
         }
-    } else {
-        if unit_id == 0 {
-            if comptime!(matches!(check_bounds, CheckBounds::Checked)) {
-                out.write_checked(write_index, sum);
-            } else {
-                out.write(write_index, sum);
-            }
+    } else if unit_id == 0 {
+        if comptime!(matches!(check_bounds, CheckBounds::Checked)) {
+            out.write_checked(write_index, sum);
+        } else {
+            out.write(write_index, sum);
         }
     }
 }

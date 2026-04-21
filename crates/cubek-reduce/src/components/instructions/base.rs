@@ -26,6 +26,10 @@ impl AccumulatorFormat {
             AccumulatorFormat::Single => 1,
         }
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 #[derive(CubeType)]

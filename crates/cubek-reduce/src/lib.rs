@@ -102,7 +102,7 @@ pub fn reduce<R: Runtime>(
         &output.shape,
         axis,
         if let ReduceOperationConfig::ArgTopK(k) = operation {
-            Some(k as usize)
+            Some(k)
         } else {
             None
         },

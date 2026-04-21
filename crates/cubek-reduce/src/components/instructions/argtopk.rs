@@ -76,8 +76,8 @@ impl<P: ReducePrecision> ReduceInstruction<P> for ArgTopK {
     }
 
     fn null_accumulator(this: &Self) -> Accumulator<P> {
-        let mut elements = Array::new(comptime!(this.k as usize));
-        let mut args = Array::new(comptime!(this.k as usize));
+        let mut elements = Array::new(comptime!(this.k));
+        let mut args = Array::new(comptime!(this.k));
         for i in 0..this.k {
             elements[i] = Vector::new(P::EA::min_value());
             args[i] = Vector::new(u32::MAX);
@@ -160,18 +160,18 @@ impl<P: ReducePrecision> ReduceInstruction<P> for ArgTopK {
 
         for i in 0..this.k {
             for j in 0..vector_size {
-                let mut element = accumulators[i as usize][j];
-                let mut coord = Out::cast_from(args[i as usize][j]);
+                let mut element = accumulators[i][j];
+                let mut coord = Out::cast_from(args[i][j]);
 
                 for slot in 0..this.k {
-                    let current = topk[slot as usize];
-                    let current_coord = topk_args[slot as usize];
+                    let current = topk[slot];
+                    let current_coord = topk_args[slot];
 
                     // keep `current` in the slot if it wins (bigger, or equal with lower coord)
                     let keep = select(current == element, current_coord < coord, current > element);
 
-                    topk[slot as usize] = select(keep, current, element);
-                    topk_args[slot as usize] = select(keep, current_coord, coord);
+                    topk[slot] = select(keep, current, element);
+                    topk_args[slot] = select(keep, current_coord, coord);
                     element = select(keep, element, current);
                     coord = select(keep, coord, current_coord);
                 }
