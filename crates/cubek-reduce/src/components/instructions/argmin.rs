@@ -2,7 +2,7 @@ use super::{
     ArgAccumulator, ReduceFamily, ReduceInstruction, ReduceRequirements, lowest_coordinate_matching,
 };
 use crate::components::{
-    instructions::{Accumulator, Item, ReduceStep, Value, AccumulatorFormat},
+    instructions::{Accumulator, AccumulatorFormat, Item, ReduceStep, Value},
     precision::ReducePrecision,
 };
 use cubecl::prelude::*;

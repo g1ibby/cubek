@@ -26,6 +26,10 @@ impl AccumulatorFormat {
             AccumulatorFormat::Single => 1,
         }
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 #[derive(CubeType)]
@@ -196,12 +200,6 @@ pub struct Item<P: ReducePrecision> {
 pub struct Accumulator<P: ReducePrecision> {
     pub(crate) elements: Value<Vector<P::EA, P::SI>>,
     pub args: Value<Vector<u32, P::SI>>,
-}
-
-impl<P: ReducePrecision> Accumulator<P> {
-    pub fn to_elements_and_args(self) -> (Value<Vector<P::EA, P::SI>>, Value<Vector<u32, P::SI>>) {
-        (self.elements, self.args)
-    }
 }
 
 /// A simple trait that abstract over a single or multiple shared memory.
