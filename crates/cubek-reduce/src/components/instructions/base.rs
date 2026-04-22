@@ -138,14 +138,14 @@ impl<X: CubePrimitive> SharedAccumulatorKind<X> {
 /// together into a single accumulator that is converted to the expected output type.
 #[cube]
 pub trait ReduceInstruction<P: ReducePrecision>:
-    Send + Sync + 'static + std::fmt::Debug + CubeType
+    Send + Sync + 'static + std::fmt::Debug + CubeType + Sized
 {
     type Config: CubeComptime + Send + Sync;
 
     /// When multiple agents are collaborating to reduce a single slice,
     /// we need a share accumulator to store multiple `AccumulatorItem`.
     /// This is most likely a `SharedMemory<Vector<T>>` or a struct or tuple of vectorized shared memories.
-    type SharedAccumulator: SharedAccumulator<P>;
+    type SharedAccumulator: SharedAccumulator<P, Self>;
 
     /// Requirements of the reduce.
     fn requirements(this: &Self) -> ReduceRequirements;
@@ -204,8 +204,10 @@ pub struct Accumulator<P: ReducePrecision> {
 
 /// A simple trait that abstract over a single or multiple shared memory.
 #[cube]
-pub trait SharedAccumulator<P: ReducePrecision>: CubeType + Send + Sync + 'static {
-    fn allocate(#[comptime] length: usize, #[comptime] _coordinate: bool) -> Self;
+pub trait SharedAccumulator<P: ReducePrecision, I: ReduceInstruction<P>>:
+    CubeType + Send + Sync + 'static
+{
+    fn allocate(#[comptime] length: usize, #[comptime] _coordinate: bool, inst: &I) -> Self;
 
     fn read(accumulator: &Self, index: usize) -> Accumulator<P>;
 
@@ -213,8 +215,10 @@ pub trait SharedAccumulator<P: ReducePrecision>: CubeType + Send + Sync + 'stati
 }
 
 #[cube]
-impl<P: ReducePrecision> SharedAccumulator<P> for SharedMemory<Vector<P::EA, P::SI>> {
-    fn allocate(#[comptime] length: usize, #[comptime] _coordinate: bool) -> Self {
+impl<P: ReducePrecision, I: ReduceInstruction<P>> SharedAccumulator<P, I>
+    for SharedMemory<Vector<P::EA, P::SI>>
+{
+    fn allocate(#[comptime] length: usize, #[comptime] _coordinate: bool, _inst: &I) -> Self {
         SharedMemory::new(length)
     }
 
@@ -247,8 +251,8 @@ pub enum ReduceStep {
 }
 
 #[cube]
-impl<P: ReducePrecision> SharedAccumulator<P> for ArgAccumulator<P> {
-    fn allocate(#[comptime] length: usize, #[comptime] _coordinate: bool) -> Self {
+impl<P: ReducePrecision, I: ReduceInstruction<P>> SharedAccumulator<P, I> for ArgAccumulator<P> {
+    fn allocate(#[comptime] length: usize, #[comptime] _coordinate: bool, _inst: &I) -> Self {
         ArgAccumulator::<P> {
             elements: SharedMemory::new(length),
             args: SharedMemory::new(length),

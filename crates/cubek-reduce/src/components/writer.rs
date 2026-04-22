@@ -136,7 +136,8 @@ impl<Out: NumericVector> ParallelWriter<Out> {
         let out = I::to_output_parallel::<Out::T>(inst, accumulator, self.axis_size);
 
         match out {
-            Value::Multiple(array) => {
+            Value::Multiple(array) =>
+            {
                 #[unroll]
                 for i in 0..self.accumulator_length {
                     let mut vec = self.buffer.multiple_mut()[i];

@@ -149,8 +149,10 @@ pub struct DynamicAccumulator<P: ReducePrecision> {
 }
 
 #[cube]
-impl<P: ReducePrecision> SharedAccumulator<P> for DynamicSharedAccumulator<P> {
-    fn allocate(#[comptime] length: usize, #[comptime] coordinate: bool) -> Self {
+impl<P: ReducePrecision, I: ReduceInstruction<P>> SharedAccumulator<P, I>
+    for DynamicSharedAccumulator<P>
+{
+    fn allocate(#[comptime] length: usize, #[comptime] coordinate: bool, _inst: &I) -> Self {
         let elements = SharedMemory::new(length);
         // TODO how to put multiple?
         let args = if coordinate {

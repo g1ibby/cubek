@@ -38,11 +38,12 @@ pub struct DummyArgTopkSharedAccumulator<A: CubeType + Send + Sync + 'static> {
 }
 
 #[cube]
-impl<A: CubeType + Send + Sync + 'static, P: ReducePrecision> SharedAccumulator<P>
-    for DummyArgTopkSharedAccumulator<A>
+impl<A: CubeType + Send + Sync + 'static, P: ReducePrecision>
+    SharedAccumulator<P, ArgTopK> for DummyArgTopkSharedAccumulator<A>
 {
-    fn allocate(#[comptime] _length: usize, #[comptime] _coordinate: bool) -> Self {
+    fn allocate(#[comptime] _length: usize, #[comptime] _coordinate: bool, _inst: &ArgTopK) -> Self {
         unreachable!()
+        //DummyArgTopkSharedAccumulator {}
     }
 
     fn read(_accumulator: &Self, _index: usize) -> Accumulator<P> {

@@ -158,7 +158,7 @@ impl GlobalFullCubeReduce {
         let accumulator_size = blueprint.num_shared_accumulators;
         let requirements = I::requirements(inst);
         let mut accumulator_shared =
-            I::SharedAccumulator::allocate(accumulator_size, requirements.coordinates);
+            I::SharedAccumulator::allocate(accumulator_size, requirements.coordinates, inst);
 
         I::SharedAccumulator::write(&mut accumulator_shared, worker_pos, accumulator_plane);
 

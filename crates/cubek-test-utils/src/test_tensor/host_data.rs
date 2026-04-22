@@ -155,11 +155,7 @@ pub fn pretty_print_zip(tensors: &[&HostData]) -> String {
     let dims = tensors[0].shape.as_slice();
 
     for t in tensors {
-        assert_eq!(
-            t.shape.as_slice(),
-            dims,
-            "All tensors must have same shape"
-        );
+        assert_eq!(t.shape.as_slice(), dims, "All tensors must have same shape");
     }
 
     let (rows, cols) = rows_cols(&tensors[0].shape);
