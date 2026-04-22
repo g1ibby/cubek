@@ -1,8 +1,7 @@
 use crate::components::tile_matmul::TileMatmulFamily;
-use crate::{
-    components::resource::CubeDimResource, components::tile_matmul::Plane,
-    components::tile_matmul::SharedTileConfig, components::tile_matmul::cmma::matmul::CmmaMatmul,
-};
+use crate::components::tile_matmul::dispatch::DispatchTileMatmul;
+use crate::components::tile_matmul::dispatch::config::DispatchConfig;
+use crate::{components::resource::CubeDimResource, components::tile_matmul::Plane};
 use crate::{
     definition::{MatmulAvailabilityError, MatmulSetupError, MatmulVectorSizes},
     definition::{MatmulElems, TilingBlueprint},
@@ -13,13 +12,15 @@ use cubecl::{
 };
 use cubek_std::{InvalidConfigError, TileSize};
 
-impl TileMatmulFamily for CmmaMatmul {
-    type Config = SharedTileConfig;
+impl TileMatmulFamily for DispatchTileMatmul {
+    type Config = DispatchConfig;
     type Scope = Plane;
-    type Matmul<L: Numeric, VL: Size, R: Numeric, VR: Size, A: Numeric, VA: Size> = CmmaMatmul;
+    type Matmul<L: Numeric, VL: Size, R: Numeric, VR: Size, A: Numeric, VA: Size> =
+        DispatchTileMatmul;
 
     fn requires_accelerator() -> bool {
-        true
+        todo!()
+        // match self;
     }
 
     fn can_cast_stage_element() -> bool {
@@ -35,12 +36,8 @@ impl TileMatmulFamily for CmmaMatmul {
         blueprint: &TilingBlueprint,
         _dtypes: &MatmulElems,
         _vector_sizes: &MatmulVectorSizes,
-    ) -> Result<SharedTileConfig, MatmulSetupError> {
-        Ok(SharedTileConfig::new(
-            blueprint.tiling_scheme.tile_size,
-            blueprint.plane_dim,
-            blueprint.swizzle_modes,
-        ))
+    ) -> Result<DispatchConfig, MatmulSetupError> {
+        todo!()
     }
 
     fn should_swizzle<R: Runtime>(_client: &ComputeClient<R>) -> bool {
