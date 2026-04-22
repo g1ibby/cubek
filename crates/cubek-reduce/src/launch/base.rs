@@ -42,16 +42,7 @@ pub(crate) fn launch_reduce<Run: Runtime>(
 
     let problem = ReduceProblem {
         vector_size: input.shape[reduce_axis],
-        // Count reductions, not output scalars: TopK/ArgTopK produce k outputs per
-        // reduction, so the output shape's reduce-axis slot is k (not 1). Using the
-        // full product would over-count reductions by a factor of k and launch too
-        // many units.
-        vector_count: output
-            .shape
-            .iter()
-            .enumerate()
-            .filter_map(|(d, s)| (d != reduce_axis).then_some(s))
-            .product(),
+        vector_count: output.shape.iter().copied().product(),
         axis: reduce_axis,
         dtypes,
         address_type,
@@ -61,7 +52,7 @@ pub(crate) fn launch_reduce<Run: Runtime>(
         _ => VectorizationMode::Perpendicular,
     };
 
-    let out_vec_axis = output_vectorization_axis(&input.strides, vectorization_mode);
+    let out_vec_axis = output_vectorization_axis(&input.strides, reduce_axis, vectorization_mode);
 
     let (vector_size_input, vector_size_output) = generate_vector_size::<Run>(
         client,
