@@ -144,7 +144,7 @@ impl<P: ReducePrecision> ReduceInstruction<P> for TopK {
         //            insert_item = select_many(keep, insert_item, acc_item);
         //        }
         //    }
-        }
+        //}
     }
 
     //fn reduce(
