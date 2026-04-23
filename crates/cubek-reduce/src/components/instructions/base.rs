@@ -212,7 +212,7 @@ pub struct Item<P: ReducePrecision> {
 
 #[derive(CubeType)]
 pub struct Accumulator<P: ReducePrecision> {
-    pub(crate) elements: Value<Vector<P::EA, P::SI>>,
+    pub elements: Value<Vector<P::EA, P::SI>>,
     pub args: Value<Vector<u32, P::SI>>,
 }
 
