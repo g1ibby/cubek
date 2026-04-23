@@ -152,19 +152,34 @@ pub struct DynamicAccumulator<P: ReducePrecision> {
 impl<P: ReducePrecision, I: ReduceInstruction<P>> SharedAccumulator<P, I>
     for DynamicSharedAccumulator<P>
 {
-    fn allocate(#[comptime] length: usize, #[comptime] coordinate: bool, _inst: &I) -> Self {
-        let elements = SharedMemory::new(length);
-        // TODO how to put multiple?
-        let args = if coordinate {
-            let args = SharedMemory::new(length);
-            SharedAccumulatorKind::new_Single(args)
-        } else {
-            SharedAccumulatorKind::new_None()
-        };
-
-        DynamicSharedAccumulator::<P> {
-            elements: SharedAccumulatorKind::new_Single(elements),
-            args,
+    fn allocate(#[comptime] length: usize, #[comptime] coordinate: bool, inst: &I) -> Self {
+        let format = I::accumulator_format(inst);
+        match comptime!(format) {
+            AccumulatorFormat::Single => {
+                let elements = SharedMemory::new(length);
+                // TODO how to put multiple?
+                let args = if coordinate {
+                    let args = SharedMemory::new(length);
+                    SharedAccumulatorKind::new_Single(args)
+                } else {
+                    SharedAccumulatorKind::new_None()
+                };
+                DynamicSharedAccumulator::<P> {
+                    elements: SharedAccumulatorKind::new_Single(elements),
+                    args,
+                }
+            }
+            AccumulatorFormat::Multiple(len) => {
+                let mut elements = Sequence::new();
+                #[unroll]
+                for _ in 0..len {
+                    elements.push(SharedMemory::new(length));
+                }
+                DynamicSharedAccumulator::<P> {
+                    elements: SharedAccumulatorKind::new_Multiple(elements),
+                    args: SharedAccumulatorKind::new_None(),
+                }
+            }
         }
     }
 

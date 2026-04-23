@@ -21,10 +21,7 @@ fn random_tensor_handle(
     // Size the physical buffer to cover every logical index under these
     // strides — not just `shape.product()`. Jumpy strides (e.g. a slice that
     // steps over padding) need more room; broadcast strides (0) need less.
-    let physical_len = physical_extent(
-        &Shape::from(tensor_shape.to_vec()),
-        &Strides::new(strides),
-    );
+    let physical_len = physical_extent(&Shape::from(tensor_shape.to_vec()), &Strides::new(strides));
     let tensor_handle = TensorHandle::empty(client, vec![physical_len], dtype);
 
     match distribution {

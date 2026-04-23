@@ -31,26 +31,29 @@ pub struct TopkAccumulator<E: Scalar, S: Size> {
 #[derive(CubeType)]
 /// Only to respect the type system. Shared Accumulator behaviour is not supported
 pub struct TopKSharedAccumulator<P: ReducePrecision> {
-    elements: SharedMemory<Vector<P::EA, P::SI>>,
+    elements: Sequence<SharedMemory<Vector<P::EA, P::SI>>>,
     #[cube(comptime)]
     k: usize,
 }
 
 #[cube]
-impl<P: ReducePrecision>
-    SharedAccumulator<P, TopK> for TopKSharedAccumulator<P>
-{
+impl<P: ReducePrecision> SharedAccumulator<P, TopK> for TopKSharedAccumulator<P> {
     fn allocate(#[comptime] length: usize, #[comptime] _coordinate: bool, inst: &TopK) -> Self {
+        let mut elements = Sequence::new();
+        for _ in 0..inst.k {
+            elements.push(SharedMemory::new(length));
+        }
         TopKSharedAccumulator::<P> {
-            elements: SharedMemory::new(comptime!(inst.k * length)),
+            elements,
             k: inst.k,
         }
     }
 
     fn read(accumulator: &Self, index: usize) -> Accumulator<P> {
         let mut values = Array::new(accumulator.k);
+        #[unroll]
         for i in 0..accumulator.k {
-            values[i] = accumulator.elements[index * accumulator.k + i];
+            values[i] = accumulator.elements[i][index];
         }
         Accumulator::<P> {
             elements: Value::new_Multiple(values),
@@ -60,8 +63,11 @@ impl<P: ReducePrecision>
 
     fn write(accumulator: &mut Self, index: usize, item: Accumulator<P>) {
         let values = item.elements.multiple();
+        #[unroll]
         for i in 0..accumulator.k {
-            accumulator.elements[index * accumulator.k + i] = values[i]
+            let acc = values[i];
+            let mut shared_acc = accumulator.elements[i];
+            shared_acc[index] = acc;
         }
     }
 }
@@ -106,7 +112,6 @@ impl<P: ReducePrecision> ReduceInstruction<P> for TopK {
         item: Item<P>,
         #[comptime] reduce_step: ReduceStep,
     ) {
-        //todo!();
         let elements = accumulator.elements.multiple_mut();
 
         match reduce_step {
@@ -161,7 +166,6 @@ impl<P: ReducePrecision> ReduceInstruction<P> for TopK {
     }
 
     fn plane_reduce_inplace(this: &Self, accumulator: &mut Accumulator<P>) {
-        //todo!();
         let elements = accumulator.elements.multiple_mut();
 
         // We only need to store the final elements

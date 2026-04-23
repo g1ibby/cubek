@@ -13,7 +13,7 @@ pub struct ReduceRequirements {
     pub coordinates: bool,
 }
 
-#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, CubeType)]
 pub enum AccumulatorFormat {
     Multiple(usize),
     Single,
@@ -113,7 +113,14 @@ pub enum SharedAccumulatorKind<X: CubePrimitive> {
 impl<X: CubePrimitive> SharedAccumulatorKind<X> {
     pub fn get(&self, i: usize) -> Value<X> {
         match self {
-            SharedAccumulatorKind::Multiple(_sequence) => todo!(),
+            SharedAccumulatorKind::Multiple(sequence) => {
+                let mut array = Array::new(sequence.len());
+                #[unroll]
+                for k_iter in 0..sequence.len() {
+                    array[i] = sequence[k_iter][i];
+                }
+                Value::new_Multiple(array)
+            },
             SharedAccumulatorKind::Single(shared_memory) => Value::new_single(shared_memory[i]),
             SharedAccumulatorKind::None => Value::new_None(),
         }
@@ -121,7 +128,13 @@ impl<X: CubePrimitive> SharedAccumulatorKind<X> {
 
     pub fn set(&mut self, i: usize, value: Value<X>) {
         match self {
-            SharedAccumulatorKind::Multiple(_sequence) => todo!(),
+            SharedAccumulatorKind::Multiple(sequence) => {
+                #[unroll]
+                for k_iter in 0..sequence.len() {
+                    let mut shared_acc = sequence[k_iter];
+                    shared_acc[i] = value.multiple()[i];
+                }
+            },
             SharedAccumulatorKind::Single(shared_memory) => shared_memory[i] = value.item(),
             SharedAccumulatorKind::None => {}
         }
