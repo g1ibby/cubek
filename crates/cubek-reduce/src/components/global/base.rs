@@ -1,6 +1,24 @@
 use crate::{IdleMode, ReducePrecision, VectorizationMode, components::args::NumericVector};
 use cubecl::{prelude::*, std::tensor::r#virtual::VirtualTensor};
 
+/// Output scalar offset of the first slot (k=0) of reduction
+/// `reduction_index`.
+#[cube]
+pub fn reduction_output_base<T: Numeric, N: Size>(
+    reduction_index: usize,
+    output: &mut VirtualTensor<T, N, ReadWrite>,
+    reduce_axis: usize,
+    #[comptime] accumulator_length: usize,
+) -> usize {
+    if comptime![accumulator_length > 1] {
+        let slot_stride = output.stride(reduce_axis);
+        let group_stride = slot_stride * accumulator_length;
+        (reduction_index / slot_stride) * group_stride + (reduction_index % slot_stride)
+    } else {
+        reduction_index
+    }
+}
+
 #[cube]
 pub(crate) fn reduce_count(
     output_size: usize,

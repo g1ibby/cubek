@@ -2,7 +2,7 @@ use crate::{
     ReduceInstruction, ReducePrecision, VectorizationMode,
     components::{
         args::NumericVector,
-        global::idle_check,
+        global::{idle_check, reduction_output_base},
         instructions::{
             Accumulator, ReduceStep, SharedAccumulator, fuse_accumulator_inplace, reduce_inplace,
         },
@@ -27,7 +27,13 @@ impl GlobalFullCubeReduce {
         #[comptime] vectorization_mode: VectorizationMode,
         #[comptime] blueprint: CubeBlueprint,
     ) {
-        let write_index = CUBE_POS;
+        let acc_format = I::accumulator_format(inst);
+        let write_index = reduction_output_base::<Out::T, Out::N>(
+            CUBE_POS,
+            output,
+            reduce_axis,
+            comptime!(acc_format.len()),
+        );
 
         let accumulator_size = blueprint.num_shared_accumulators;
         let worker_pos = Self::worker_pos(blueprint);
@@ -39,7 +45,7 @@ impl GlobalFullCubeReduce {
             out_vec_axis,
             write_index,
             vectorization_mode,
-            I::accumulator_format(inst),
+            acc_format,
         );
 
         let write_count = writer.write_count();

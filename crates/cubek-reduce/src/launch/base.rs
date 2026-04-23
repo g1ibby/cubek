@@ -40,9 +40,14 @@ pub(crate) fn launch_reduce<Run: Runtime>(
         .required_address_type(dtypes.input.size())
         .max(output.required_address_type(dtypes.output.size()));
 
+    // Number of distinct reductions = product of non-reduce input dims.
+    let reduce_len = input.shape[reduce_axis];
+    let input_elems: usize = input.shape.iter().copied().product();
+    let reduce_count = input_elems / reduce_len;
+
     let problem = ReduceProblem {
-        vector_size: input.shape[reduce_axis],
-        vector_count: output.shape.iter().copied().product(),
+        reduce_len,
+        reduce_count,
         axis: reduce_axis,
         dtypes,
         address_type,

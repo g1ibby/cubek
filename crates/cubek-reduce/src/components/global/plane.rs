@@ -2,7 +2,7 @@ use crate::{
     ReduceInstruction, ReducePrecision, VectorizationMode,
     components::{
         args::NumericVector,
-        global::idle_check,
+        global::{idle_check, reduction_output_base},
         instructions::{Accumulator, reduce_inplace},
         readers::{Reader, plane::PlaneReader},
         writer::Writer,
@@ -33,7 +33,14 @@ impl GlobalFullPlaneReduce {
                 terminate!();
             }
         }
-        let write_index = CUBE_POS * CUBE_DIM_Y as usize + UNIT_POS_Y as usize;
+        let acc_format = I::accumulator_format(inst);
+        let reduction_index = CUBE_POS * CUBE_DIM_Y as usize + UNIT_POS_Y as usize;
+        let write_index = reduction_output_base::<Out::T, Out::N>(
+            reduction_index,
+            output,
+            reduce_axis,
+            comptime!(acc_format.len()),
+        );
 
         let mut writer = Writer::<Out>::new::<P>(
             input,
@@ -42,31 +49,11 @@ impl GlobalFullPlaneReduce {
             out_vec_axis,
             write_index,
             vectorization_mode,
-            I::accumulator_format(inst),
+            acc_format,
         );
 
         let write_count = writer.write_count();
         let reduce_index_start = write_index * write_count;
-
-        // For TopK/ArgTopK (accumulator_length > 1), each plane produces all `k`
-        // slots for one row. With `vector_count` sized to the full output
-        // (shape.product), multiple planes map to the same row in output-stride
-        // order (differing only in the reduce-axis slot). Let the slot==0 planes
-        // own the row; terminate the rest so they don't race and overwrite.
-        //
-        // write_index is identical across all threads in a plane (derived from
-        // CUBE_POS and UNIT_POS_Y), so the whole plane terminates together and
-        // plane_max/plane_min on surviving planes are unaffected.
-        let acc_format = I::accumulator_format(inst);
-        if comptime![acc_format.len() > 1] {
-            let scalar_index = match vectorization_mode {
-                VectorizationMode::Parallel => reduce_index_start,
-                VectorizationMode::Perpendicular => reduce_index_start * input.vector_size(),
-            };
-            if output.coordinate(scalar_index, reduce_axis) > 0 {
-                terminate!();
-            }
-        }
 
         let idle = idle_check::<P, Out>(
             input,
