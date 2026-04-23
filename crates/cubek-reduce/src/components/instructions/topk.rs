@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use cubecl::comptime;
 use cubecl::cube;
 use cubecl::frontend::CubeIndexMutExpand;
@@ -32,31 +30,45 @@ pub struct TopkAccumulator<E: Scalar, S: Size> {
 
 #[derive(CubeType)]
 /// Only to respect the type system. Shared Accumulator behaviour is not supported
-pub struct TopkSharedAccumulator<A: CubeType + Send + Sync + 'static> {
+pub struct TopKSharedAccumulator<P: ReducePrecision> {
+    elements: SharedMemory<Vector<P::EA, P::SI>>,
     #[cube(comptime)]
-    _phantom: PhantomData<A>,
+    k: usize,
 }
 
 #[cube]
-impl<A: CubeType + Send + Sync + 'static, P: ReducePrecision>
-    SharedAccumulator<P, TopK> for TopkSharedAccumulator<A>
+impl<P: ReducePrecision>
+    SharedAccumulator<P, TopK> for TopKSharedAccumulator<P>
 {
-    fn allocate(#[comptime] _length: usize, #[comptime] _coordinate: bool, _inst: &TopK) -> Self {
-        unreachable!()
+    fn allocate(#[comptime] length: usize, #[comptime] _coordinate: bool, inst: &TopK) -> Self {
+        TopKSharedAccumulator::<P> {
+            elements: SharedMemory::new(comptime!(inst.k * length)),
+            k: inst.k,
+        }
     }
 
-    fn read(_accumulator: &Self, _index: usize) -> Accumulator<P> {
-        unreachable!()
+    fn read(accumulator: &Self, index: usize) -> Accumulator<P> {
+        let mut values = Array::new(accumulator.k);
+        for i in 0..accumulator.k {
+            values[i] = accumulator.elements[index * accumulator.k + i];
+        }
+        Accumulator::<P> {
+            elements: Value::new_Multiple(values),
+            args: Value::new_None(),
+        }
     }
 
-    fn write(_accumulator: &mut Self, _index: usize, _item: Accumulator<P>) {
-        unreachable!()
+    fn write(accumulator: &mut Self, index: usize, item: Accumulator<P>) {
+        let values = item.elements.multiple();
+        for i in 0..accumulator.k {
+            accumulator.elements[index * accumulator.k + i] = values[i]
+        }
     }
 }
 
 #[cube]
 impl<P: ReducePrecision> ReduceInstruction<P> for TopK {
-    type SharedAccumulator = TopkSharedAccumulator<Accumulator<P>>;
+    type SharedAccumulator = TopKSharedAccumulator<P>;
     type Config = usize;
 
     fn requirements(_this: &Self) -> super::ReduceRequirements {
