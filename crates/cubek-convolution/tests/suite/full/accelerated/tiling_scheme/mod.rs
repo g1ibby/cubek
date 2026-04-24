@@ -9,10 +9,6 @@ macro_rules! testgen_convolution_accelerated_tiling_scheme {
 
         use super::*;
 
-        $crate::testgen_convolution_accelerated_tile!(
-            $algorithm,
-            $dtypes,
-            TilingScheme::builder()
-        );
+        $crate::testgen_convolution_accelerated_tile!($algorithm, $dtypes, TilingScheme::builder());
     };
 }

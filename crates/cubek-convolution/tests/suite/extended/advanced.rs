@@ -2,9 +2,7 @@
 //! buffering). Each knob is exercised once on a representative routine —
 //! per-routine combinations live in `full/`.
 
-use cubek_convolution::kernels::algorithm::simple::{
-    SimpleSyncCyclicConv, SimpleSyncTilewiseConv,
-};
+use cubek_convolution::kernels::algorithm::simple::{SimpleSyncCyclicConv, SimpleSyncTilewiseConv};
 use cubek_matmul::{
     components::stage::PartitionBuffering, components::tile_matmul::cmma::CmmaMatmul,
     definition::SwizzleModes,
