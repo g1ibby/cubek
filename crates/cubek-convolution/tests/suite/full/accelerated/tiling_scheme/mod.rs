@@ -4,14 +4,14 @@ mod tile;
 
 #[macro_export]
 macro_rules! testgen_convolution_accelerated_tiling_scheme {
-    ($algorithm: ty, $precision: ty) => {
+    ($algorithm: ty, $dtypes: expr) => {
         use cubek_matmul::definition::TilingScheme;
 
         use super::*;
 
         $crate::testgen_convolution_accelerated_tile!(
             $algorithm,
-            $precision,
+            $dtypes,
             TilingScheme::builder()
         );
     };
