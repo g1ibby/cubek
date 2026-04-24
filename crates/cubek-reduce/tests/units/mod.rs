@@ -15,7 +15,7 @@ fn test_plane_reduce_inplace() {
 
     // plane_size of 16 with vector_size of 4
     let num_threads = 2;
-    let k = 3;
+    let k = 2;
     let vector_size = 4;
     let total_vectors = num_threads * k * vector_size;
 
@@ -25,12 +25,22 @@ fn test_plane_reduce_inplace() {
     let dtype = f32::as_type_native_unchecked().storage_type();
     let input_dtype = InputDataType::Standard(dtype);
 
+    #[rustfmt::skip]
+    let data = vec![
+        // Thread 0
+        99.0, 99.1, 99.2, 99.3, 
+        10.0, 10.1, 10.2, 10.3, 
+        // Thread 1
+        88.0, 88.1, 102.2, 88.3, 
+        55.0, 55.1, 101.2, 55.3,
+    ];
+
     let (input_handle, _input_host) = TestInput::new(
         client.clone(),
         shape.clone(),
         input_dtype,
         StrideSpec::Custom(stride.iter().copied().collect()),
-        DataKind::Arange { scale: Some(1.) },
+        DataKind::Custom { data: data.clone() },
     )
     .generate_with_f32_host_data();
 
@@ -51,8 +61,7 @@ fn test_plane_reduce_inplace() {
 
     let bytes = client.read_one(output_handle.handle).unwrap();
     let actual = f32::from_bytes(&bytes);
-
-    assert_plane_topk_consensus_arange(actual, num_threads, k, vector_size);
+    assert_plane_topk_custom_values(&data, actual, num_threads, k, vector_size);
 }
 
 fn build_output_tensor(
@@ -85,7 +94,7 @@ fn launch_plane_reduce_inplace<N: Numeric, S: Size>(
     // Load backwards so the accumulator is already sorted descending locally
     #[unroll]
     for i in 0..k {
-        elements[i] = input[offset + (k - 1 - i)];
+        elements[i] = input[offset + i];
     }
 
     plane_topk_merge::<N, S>(k, &mut elements);
@@ -96,38 +105,33 @@ fn launch_plane_reduce_inplace<N: Numeric, S: Size>(
     }
 }
 
-fn assert_plane_topk_consensus_arange(
-    actual: &[f32],
+fn assert_plane_topk_custom_values(
+    input_host: &[f32],
+    actual_gpu: &[f32],
     num_threads: usize,
     k: usize,
     vector_size: usize,
 ) {
-    // Calculate the expected Top-K for the plane.
-    // In an Arange input, the highest values are the last K vectors of the plane.
-    let mut expected_topk = Vec::with_capacity(k * vector_size);
-    let last_vector_index = (num_threads * k) - 1;
+    let mut expected_topk = vec![0.0; k * vector_size];
 
-    for i in 0..k {
-        let vector_id = last_vector_index - i;
-        let start_scalar = (vector_id * vector_size) as f32;
+    // Sort each lane independently
+    for lane in 0..vector_size {
+        let mut lane_values = Vec::new();
+        for i in 0..(num_threads * k) {
+            lane_values.push(input_host[i * vector_size + lane]);
+        }
 
-        for offset in 0..vector_size {
-            expected_topk.push(start_scalar + offset as f32);
+        // Sort descending for this specific lane
+        lane_values.sort_by(|a, b| b.partial_cmp(a).unwrap());
+
+        for i in 0..k {
+            expected_topk[i * vector_size + lane] = lane_values[i];
         }
     }
 
     for unit in 0..num_threads {
         let start = unit * k * vector_size;
         let end = start + (k * vector_size);
-        let thread_results = &actual[start..end];
-
-        assert_eq!(
-            thread_results,
-            expected_topk.as_slice(),
-            "Consensus failure at Thread {}: Expected {:#?}, but got {:#?}",
-            unit,
-            expected_topk,
-            thread_results
-        );
+        assert_eq!(&actual_gpu[start..end], expected_topk.as_slice());
     }
 }
