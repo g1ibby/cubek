@@ -1,13 +1,9 @@
 use cubecl::frontend::CubePrimitive;
 use cubecl::{
-    CubeCount, CubeDim, Runtime, TestRuntime, cube,
-    ir::StorageType,
-    prelude::*,
-    std::tensor::TensorHandle,
-    zspace::Shape,
+    CubeCount, CubeDim, Runtime, TestRuntime, cube, ir::StorageType, prelude::*,
+    std::tensor::TensorHandle, zspace::Shape,
 };
-use cubek_reduce::ReducePrecision;
-use cubek_reduce::components::instructions::{Accumulator, Value, plane_reduce_inplace};
+use cubek_reduce::components::instructions::plane_topk_merge;
 use cubek_test_utils::{DataKind, InputDataType, StrideSpec, TestInput};
 
 use crate::it::reference::contiguous_strides;
@@ -16,16 +12,18 @@ use cubecl::frontend::CompilationArg;
 #[test]
 fn test_plane_reduce_inplace() {
     let client = TestRuntime::client(&Default::default());
-    let k = 2;
+
+    // plane_size of 16 with vector_size of 4
     let num_threads = 2;
+    let k = 3;
+    let vector_size = 4;
+    let total_vectors = num_threads * k * vector_size;
 
-    // We need (num_threads * k) vectors total
-    let total_elements = num_threads * k;
-    let shape = Shape::new([total_elements]);
-
+    let shape = Shape::new([total_vectors]);
     let stride = contiguous_strides(&shape);
 
-    let input_dtype = InputDataType::Standard(f32::as_type_native_unchecked().storage_type());
+    let dtype = f32::as_type_native_unchecked().storage_type();
+    let input_dtype = InputDataType::Standard(dtype);
 
     let (input_handle, _input_host) = TestInput::new(
         client.clone(),
@@ -40,20 +38,21 @@ fn test_plane_reduce_inplace() {
 
     let output_handle = build_output_tensor(&client, storage_type, &shape);
 
-    launch_plane_reduce_inplace::launch::<f32, TestRuntime>(
+    launch_plane_reduce_inplace::launch::<TestRuntime>(
         &client,
         CubeCount::Static(1, 1, 1),
         CubeDim::new(&client, num_threads),
         input_handle.binding().into_tensor_arg(),
         output_handle.clone().binding().into_tensor_arg(),
-        k
+        k,
+        storage_type,
+        vector_size,
     );
 
     let bytes = client.read_one(output_handle.handle).unwrap();
     let actual = f32::from_bytes(&bytes);
 
-    let expected = vec![3.0, 2.0, 3.0, 2.0];
-    assert_eq!(actual, expected, "The plane reduction did not converge to the global Top-K");
+    assert_plane_topk_consensus_arange(actual, num_threads, k, vector_size);
 }
 
 fn build_output_tensor(
@@ -73,30 +72,62 @@ fn build_output_tensor(
 }
 
 #[cube(launch)]
-fn launch_plane_reduce_inplace<P: ReducePrecision + Send + Sync>(
-    input: &Tensor<Vector<P::EI, P::SI>>,
-    output: &mut Tensor<Vector<P::EA, P::SI>>,
+fn launch_plane_reduce_inplace<N: Numeric, S: Size>(
+    input: &Tensor<Vector<N, S>>,
+    output: &mut Tensor<Vector<N, S>>,
     #[comptime] k: usize,
+    #[define(N)] _dtype: StorageType,
+    #[define(S)] _vector_size: usize,
 ) {
     let mut elements = Array::new(k);
-
     let offset = UNIT_POS_X as usize * k;
 
+    // Load backwards so the accumulator is already sorted descending locally
     #[unroll]
     for i in 0..k {
-        // Use cast_from but ensure it knows it's targeting Vector<P::EA, P::SI>
-        elements[i] = Vector::<P::EA, P::SI>::cast_from(input[offset + i]);
+        elements[i] = input[offset + (k - 1 - i)];
     }
-    let mut accumulator = Accumulator::<P> {
-        elements: Value::new_Multiple(elements),
-        args: Value::new_None(),
-    };
 
-    plane_reduce_inplace::<P>(k, &mut accumulator);
+    plane_topk_merge::<N, S>(k, &mut elements);
 
-    let final_elements = accumulator.elements.multiple();
     #[unroll]
     for i in 0..k {
-        output[offset + i] = final_elements[i];
+        output[offset + i] = elements[i];
+    }
+}
+
+fn assert_plane_topk_consensus_arange(
+    actual: &[f32],
+    num_threads: usize,
+    k: usize,
+    vector_size: usize,
+) {
+    // Calculate the expected Top-K for the plane.
+    // In an Arange input, the highest values are the last K vectors of the plane.
+    let mut expected_topk = Vec::with_capacity(k * vector_size);
+    let last_vector_index = (num_threads * k) - 1;
+
+    for i in 0..k {
+        let vector_id = last_vector_index - i;
+        let start_scalar = (vector_id * vector_size) as f32;
+
+        for offset in 0..vector_size {
+            expected_topk.push(start_scalar + offset as f32);
+        }
+    }
+
+    for unit in 0..num_threads {
+        let start = unit * k * vector_size;
+        let end = start + (k * vector_size);
+        let thread_results = &actual[start..end];
+
+        assert_eq!(
+            thread_results,
+            expected_topk.as_slice(),
+            "Consensus failure at Thread {}: Expected {:#?}, but got {:#?}",
+            unit,
+            expected_topk,
+            thread_results
+        );
     }
 }

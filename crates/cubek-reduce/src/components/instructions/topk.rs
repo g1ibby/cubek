@@ -166,7 +166,7 @@ impl<P: ReducePrecision> ReduceInstruction<P> for TopK {
     }
 
     fn plane_reduce_inplace(this: &Self, accumulator: &mut Accumulator<P>) {
-        plane_reduce_inplace(this.k, accumulator);
+        plane_topk_merge::<P::EA, P::SI>(this.k, accumulator.elements.multiple_mut());
     }
 
     fn fuse_accumulators(this: &Self, accumulator: &mut Accumulator<P>, other: &Accumulator<P>) {
@@ -241,42 +241,34 @@ impl<P: ReducePrecision> ReduceInstruction<P> for TopK {
 }
 
 #[cube]
-pub fn plane_reduce_inplace<P: ReducePrecision>(
+pub fn plane_topk_merge<N: Numeric, S: Size>(
     #[comptime] k: usize,
-    accumulator: &mut Accumulator<P>,
+    elements: &mut Array<Vector<N, S>>,
 ) {
-    let elements = accumulator.elements.multiple_mut();
-
-    // We only need to store the final elements
     let mut final_elements = Array::new(k);
 
-    // 'local_ptr' tracks which of the K items in our local list we are proposing.
-    let mut local_ptr = Vector::new(0u32);
-    // 'lane_id' gives every thread a unique ID for tie-breaking.
+    let mut cursor = Vector::new(0u32);
     let lane_id = Vector::new(UNIT_POS_X);
 
     for i in 0..k {
-        // 1. Fetch the current local candidate
-        let mut local_best_val = Vector::new(P::EA::min_value());
+        let mut local_best_val = Vector::new(N::min_value());
         for j in 0..k {
-            let is_pointed_slot = local_ptr.equal(Vector::new(j as u32));
+            let is_pointed_slot = cursor.equal(Vector::new(j as u32));
             local_best_val = select_many(is_pointed_slot, elements[j], local_best_val);
         }
 
-        // 2. Find the global max value
+        // Find the global max value
         let winning_val = plane_max(local_best_val);
 
-        // 3. TIE-BREAKER: Find WHICH thread provided the winner.
+        // Find WHICH thread provided the winner.
         let is_candidate = local_best_val.equal(winning_val);
         let candidate_id = select_many(is_candidate, lane_id, Vector::new(u32::MAX));
         let winning_lane_id = plane_min(candidate_id);
 
-        // 4. Record the winner
         final_elements[i] = winning_val;
 
-        // 5. Update pointer: Only the specific thread (and lane) that won increments.
         let is_winner_thread = lane_id.equal(winning_lane_id);
-        local_ptr = select_many(is_winner_thread, local_ptr + Vector::new(1u32), local_ptr);
+        cursor = select_many(is_winner_thread, cursor + Vector::new(1u32), cursor);
     }
 
     for i in 0..k {
