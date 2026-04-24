@@ -116,42 +116,13 @@ impl<P: ReducePrecision> ReduceInstruction<P> for TopK {
 
         match reduce_step {
             ReduceStep::Plane => {
-                // Every thread starts with its own item as the candidate
-                let mut local_best_val = Vector::cast_from(item.elements);
-                let unit_pos_plane = Vector::new(UNIT_POS_X);
-                #[unroll]
-                for _i in 0..this.k {
-                    // 1. Find the global maximum among currently unmasked items
-                    let winning_val = plane_max(local_best_val);
-
-                    // 2. Tie-break: Determine which specific lane owns this value
-                    let is_match = local_best_val.equal(winning_val);
-                    let my_claim = select_many(is_match, unit_pos_plane, Vector::new(u32::MAX));
-                    let winning_lane = plane_min(my_claim);
-
-                    // 3. Insert the global winner into the local Top-K set
-                    // (All threads in the warp insert the same value to stay in sync)
-                    let mut insert_item = winning_val;
-                    for j in 0..this.k {
-                        let acc_item = elements[j];
-                        let keep = acc_item.greater_than(insert_item);
-
-                        elements[j] = select_many(keep, acc_item, insert_item);
-                        insert_item = select_many(keep, insert_item, acc_item);
-                    }
-
-                    // 4. Mask out the winner: the thread that just "gave" its value
-                    // sets its candidate to MIN so it's ignored in the next k_winners loop.
-                    let is_winner_thread = unit_pos_plane.equal(winning_lane);
-                    local_best_val = select_many(
-                        is_winner_thread,
-                        Vector::new(P::EA::min_value()),
-                        local_best_val,
-                    );
-                }
+                plane_topk_insert::<P::EA, P::SI>(
+                    elements,
+                    Vector::cast_from(item.elements),
+                    this.k,
+                );
             }
             ReduceStep::Identity => {
-                // Each thread just inserts its single item into its own Top-K list
                 let mut insert_item = Vector::cast_from(item.elements);
 
                 for j in 0..this.k {
@@ -237,6 +208,43 @@ impl<P: ReducePrecision> ReduceInstruction<P> for TopK {
         }
 
         Value::new_Multiple(output)
+    }
+}
+
+#[cube]
+pub fn plane_topk_insert<N: Numeric, S: Size>(
+    elements: &mut Array<Vector<N, S>>,
+    item: Vector<N, S>,
+    #[comptime] k: usize,
+) {
+    let mut local_best_val = item;
+    let unit_pos_x = Vector::new(UNIT_POS_X);
+
+    #[unroll]
+    for _i in 0..k {
+        let winning_val = plane_max(local_best_val);
+
+        let is_match = local_best_val.equal(winning_val);
+        let claim = select_many(is_match, unit_pos_x, Vector::new(u32::MAX));
+        let winning_lane = plane_min(claim);
+
+        // All threads in the warp insert the same value to stay in sync
+        let mut insert_item = winning_val;
+        for j in 0..k {
+            let acc_item = elements[j];
+            let keep = acc_item.greater_than(insert_item);
+
+            elements[j] = select_many(keep, acc_item, insert_item);
+            insert_item = select_many(keep, insert_item, acc_item);
+        }
+
+        // Mask out the winner, set its value to min
+        let is_winner_thread = unit_pos_x.equal(winning_lane);
+        local_best_val = select_many(
+            is_winner_thread,
+            Vector::new(N::min_value()),
+            local_best_val,
+        );
     }
 }
 
