@@ -5,6 +5,7 @@
 resolver = "2"
 
 members = ["crates/*", "xtask", "benchmarks"]
+exclude = ["crates/.claude"]
 
 [workspace.package]
 edition = "2024"
@@ -19,8 +20,8 @@ version = "0.2.0-pre.3"
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
 
 ### For the main cubek branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", rev = "34625c911c3e07b0438d91bea9af0f2233050589", default-features = false }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", rev = "34625c911c3e07b0438d91bea9af0f2233050589", default-features = false }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", rev = "21c97057491dd8d06157897d30072e79179237c7", default-features = false }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", rev = "21c97057491dd8d06157897d30072e79179237c7", default-features = false }
 
 ### For releases ###
 # cubecl = { version = "=0.10.0-pre.3", default-features = false }
@@ -56,7 +57,7 @@ thiserror = { version = "2", default-features = false }
 
 ### For xtask crate ###
 strum = { version = "0.28", features = ["derive"] }
-tracel-xtask = { version = "4.8" }
+tracel-xtask = { version = "=4.16.0" }
 
 pretty_assertions = "1.4"
 

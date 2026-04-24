@@ -1,16 +1,15 @@
 #![allow(missing_docs)]
 
+pub mod basic;
 #[cfg(feature = "extended")]
 pub mod extended;
-#[cfg(feature = "extended")]
-pub mod quantization;
+#[cfg(feature = "full")]
+pub mod full;
 
-mod launcher_routine;
+mod bias;
 mod launcher_strategy;
 mod reference;
 
-#[allow(deprecated)]
-pub(crate) use launcher_routine::{InputRepresentation, test_matmul_routine};
 pub(crate) use launcher_strategy::test_matmul_strategy;
 
 pub(crate) use reference::assert_result;
