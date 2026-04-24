@@ -9,7 +9,13 @@ use crate::components::tile_matmul::{
     planevec_allocate_rhs, register_allocate_acc, register_allocate_lhs, register_allocate_rhs,
 };
 use crate::definition::StageIdent;
-pub struct DispatchTileMatmul {}
+pub enum DispatchTileMatmul {
+    Cmma,
+    Mma,
+    Register,
+    PlaneVec,
+    Interleaved,
+}
 
 #[cube]
 impl<L: Numeric, VL: Size, R: Numeric, VR: Size, A: Numeric, VA: Size>

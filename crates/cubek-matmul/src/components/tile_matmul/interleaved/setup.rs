@@ -1,10 +1,7 @@
 use crate::{
     components::{
         resource::CubeDimResource,
-        tile_matmul::{
-            Plane, SharedTileConfig, TileMatmulFamily,
-            interleaved::{InterleavedMatmul, config::InterleavedMatmulConfig},
-        },
+        tile_matmul::{Plane, SharedTileConfig, TileMatmulFamily},
     },
     definition::{
         MatmulAvailabilityError, MatmulElems, MatmulSetupError, MatmulVectorSizes, TilingBlueprint,

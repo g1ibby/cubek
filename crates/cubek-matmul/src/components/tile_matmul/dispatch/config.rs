@@ -2,8 +2,7 @@ use cubek_std::stage::SwizzleMode;
 
 use crate::{
     components::tile_matmul::{
-        SharedTileConfig, TileConfig, interleaved::config::InterleavedMatmulConfig,
-        mma::config::MmaMatmulConfig,
+        InterleavedMatmulConfig, SharedTileConfig, TileConfig, mma::config::MmaMatmulConfig,
         plane_vec_mat_inner_product::config::PlaneVecMatInnerProductConfig,
         register::config::RegisterMatmulConfig,
     },

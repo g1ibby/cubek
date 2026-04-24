@@ -5,10 +5,8 @@ use cubek_std::{
     tile::{Filled, Strided, StridedTile},
 };
 
-use crate::components::tile_matmul::tile::Scope;
+use crate::components::tile_matmul::{MmaTile, Tile, tile::Scope};
 use crate::components::tile_matmul::{SharedTileConfig, TileConfig};
-
-use super::{MmaTile, Tile};
 
 define_size!(pub NL);
 define_size!(pub NR);

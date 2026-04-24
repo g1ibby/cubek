@@ -1,16 +1,23 @@
-use cubecl::{cmma, prelude::*};
+use cubecl::{
+    cmma::{self, Matrix},
+    prelude::*,
+};
 use cubek_std::{
     MatrixLayout, TileSize, as_cmma_layout,
     tile::{Strided, StridedTile},
 };
 
-use crate::components::tile_matmul::cmma::{
-    CmmaFragmentReader as _, CmmaStageReader, CmmaStageWriter,
+use crate::components::tile_matmul::{
+    CmmaFragmentReader, CmmaStageReader, CmmaStageWriter, Tile, tile::Scope,
 };
-use crate::components::tile_matmul::tile::Scope;
 use crate::definition::StageIdent;
 
-use super::{CmmaTile, Tile};
+#[derive(CubeType)]
+pub struct CmmaTile<N: Numeric> {
+    pub matrix: Matrix<N>,
+    #[cube(comptime)]
+    pub matrix_layout: MatrixLayout,
+}
 
 #[cube]
 pub fn cmma_allocate_lhs<L: Numeric, VL: Size, Sc: Scope>(

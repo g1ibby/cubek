@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use cubecl::{cmma::Matrix, prelude::*};
+use cubecl::prelude::*;
 use cubek_std::{
     MatrixLayout,
     tile::{StridedTile, mma::MmaIOConfig},
@@ -12,13 +12,13 @@ use crate::definition::StageIdent;
 pub mod cmma;
 pub mod interleaved;
 pub mod mma;
-pub mod planevec;
+pub mod plane_vec_mat_inner_product;
 pub mod register;
 
 pub use cmma::*;
 pub use interleaved::*;
 pub use mma::*;
-pub use planevec::*;
+pub use plane_vec_mat_inner_product::*;
 pub use register::*;
 
 /// Identifies which compute primitive executes a tile matmul.
@@ -57,13 +57,6 @@ pub enum Tile<N: Numeric, V: Size, Sc: Scope, IO: SliceVisibility> {
 }
 
 #[derive(CubeType)]
-pub struct CmmaTile<N: Numeric> {
-    pub matrix: Matrix<N>,
-    #[cube(comptime)]
-    pub matrix_layout: MatrixLayout,
-}
-
-#[derive(CubeType)]
 pub struct MmaTile<N: Numeric, V: Size> {
     pub fragment: Array<Vector<N, V>>,
     #[cube(comptime)]
@@ -94,15 +87,6 @@ pub struct PlaneVecTile<N: Numeric, V: Size> {
     pub config: SharedTileConfig,
     #[cube(comptime)]
     pub reduce_vector_size: u32,
-}
-
-#[derive(CubeType)]
-pub struct InterleavedTile<N: Numeric> {
-    pub data: Array<N>,
-    #[cube(comptime)]
-    pub matrix_layout: MatrixLayout,
-    #[cube(comptime)]
-    pub config: SharedTileConfig,
 }
 
 /// Wrapper over val to make enum work

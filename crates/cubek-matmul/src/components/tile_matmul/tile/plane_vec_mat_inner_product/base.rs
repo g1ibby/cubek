@@ -2,10 +2,8 @@ use cubecl::prelude::*;
 use cubek_std::{MatrixLayout, tile::StridedTile};
 
 use crate::components::tile_matmul::tile::Scope;
-use crate::components::tile_matmul::{SharedTileConfig, TileConfig};
+use crate::components::tile_matmul::{PlaneVecTile, SharedTileConfig, Tile, TileConfig};
 use crate::definition::StageIdent;
-
-use super::{PlaneVecTile, Tile};
 
 // ===========================================================================
 // Allocate

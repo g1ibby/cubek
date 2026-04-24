@@ -26,22 +26,23 @@ pub trait TileMatmulFamily: Send + Sync + 'static {
     type Matmul<L: Numeric, VL: Size, R: Numeric, VR: Size, A: Numeric, VA: Size>: TileMatmul<L, VL, R, VR, A, VA, Config = Self::Config, Scope = Self::Scope>;
 
     /// Returns whether this tile matmul requires specialized hardware accelerators (e.g., tensor cores).
-    fn requires_accelerator() -> bool;
+    fn requires_accelerator(&self) -> bool;
 
     /// Whether this matmul family is able to cast on load/store from the stage.
-    fn can_cast_stage_element() -> bool;
+    fn can_cast_stage_element(&self) -> bool;
 
     /// Returns whether this tile matmul may benefit from swizzling.
     /// Used to determine the selection, since swizzling may require different stage sizes.
-    fn should_swizzle<R: Runtime>(client: &ComputeClient<R>) -> bool;
+    fn should_swizzle<R: Runtime>(&self, client: &ComputeClient<R>) -> bool;
 
     /// Returns the compute resources required to run this matmul.
-    fn cubedim_resource() -> Result<CubeDimResource, InvalidConfigError>;
+    fn cubedim_resource(&self) -> Result<CubeDimResource, InvalidConfigError>;
 
     /// Constructs the configuration based on the matmul problem, selection, and vector sizes.
     ///
     /// This function may return an error if the configuration cannot be supported on the current runtime.
     fn expand_config(
+        &self,
         device_props: &DeviceProperties,
         blueprint: &TilingBlueprint,
         dtypes: &MatmulElems,
@@ -49,12 +50,13 @@ pub trait TileMatmulFamily: Send + Sync + 'static {
     ) -> Result<Self::Config, MatmulSetupError>;
 
     /// Returns whether a tile configuration is supported
-    fn is_supported<R: Runtime>(_client: &ComputeClient<R>, _config: MmaConfig) -> bool {
-        !Self::requires_accelerator()
+    fn is_supported<R: Runtime>(&self, _client: &ComputeClient<R>, _config: MmaConfig) -> bool {
+        !Self::requires_accelerator(self)
     }
 
     /// Returns all sizes supported for these types, if any
     fn supported_sizes<R: Runtime>(
+        &self,
         _client: &ComputeClient<R>,
         _lhs_ty: StorageType,
         _rhs_ty: StorageType,
@@ -64,6 +66,7 @@ pub trait TileMatmulFamily: Send + Sync + 'static {
     }
 
     fn validate_blueprint<R: Runtime>(
+        &self,
         client: &ComputeClient<R>,
         blueprint: &TilingBlueprint,
         dtypes: &MatmulElems,
