@@ -9,6 +9,8 @@ use crate::components::tile_matmul::{
     planevec_allocate_rhs, register_allocate_acc, register_allocate_lhs, register_allocate_rhs,
 };
 use crate::definition::StageIdent;
+
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
 pub enum DispatchTileMatmul {
     Cmma,
     Mma,

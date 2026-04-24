@@ -14,6 +14,11 @@ use crate::{
 };
 
 /// A family of [TileMatmul] implementations that operate with any precision.
+///
+/// There is a single implementor, [DispatchTileMatmul](super::DispatchTileMatmul),
+/// which dispatches on its variant at runtime. The trait still exists to document
+/// the surface and to keep the method set grouped, but is expected to be removed
+/// once callers are fully migrated to the inherent enum API.
 pub trait TileMatmulFamily: Send + Sync + 'static {
     /// Config for this matmul
     type Config: TileConfig;
@@ -39,8 +44,6 @@ pub trait TileMatmulFamily: Send + Sync + 'static {
     fn cubedim_resource(&self) -> Result<CubeDimResource, InvalidConfigError>;
 
     /// Constructs the configuration based on the matmul problem, selection, and vector sizes.
-    ///
-    /// This function may return an error if the configuration cannot be supported on the current runtime.
     fn expand_config(
         &self,
         device_props: &DeviceProperties,
@@ -50,20 +53,16 @@ pub trait TileMatmulFamily: Send + Sync + 'static {
     ) -> Result<Self::Config, MatmulSetupError>;
 
     /// Returns whether a tile configuration is supported
-    fn is_supported<R: Runtime>(&self, _client: &ComputeClient<R>, _config: MmaConfig) -> bool {
-        !Self::requires_accelerator(self)
-    }
+    fn is_supported<R: Runtime>(&self, client: &ComputeClient<R>, config: MmaConfig) -> bool;
 
     /// Returns all sizes supported for these types, if any
     fn supported_sizes<R: Runtime>(
         &self,
-        _client: &ComputeClient<R>,
-        _lhs_ty: StorageType,
-        _rhs_ty: StorageType,
-        _acc_ty: StorageType,
-    ) -> Vec<TileSize> {
-        Vec::new()
-    }
+        client: &ComputeClient<R>,
+        lhs_ty: StorageType,
+        rhs_ty: StorageType,
+        acc_ty: StorageType,
+    ) -> Vec<TileSize>;
 
     fn validate_blueprint<R: Runtime>(
         &self,

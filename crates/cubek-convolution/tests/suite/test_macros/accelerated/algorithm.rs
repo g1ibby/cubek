@@ -16,21 +16,21 @@ macro_rules! testgen_convolution_accelerated_algorithm {
         mod simple_cyclic {
             use super::*;
 
-            $crate::testgen_convolution_accelerated_precision!(SimpleSyncCyclicConv<TMM>);
+            $crate::testgen_convolution_accelerated_precision!(SimpleSyncCyclicConv);
         }
 
         #[cfg(all(feature = "conv_tests_simple", feature = "conv_tests_strided"))]
         mod simple_strided {
             use super::*;
 
-            $crate::testgen_convolution_accelerated_precision!(SimpleSyncStridedConv<TMM>);
+            $crate::testgen_convolution_accelerated_precision!(SimpleSyncStridedConv);
         }
 
         #[cfg(all(feature = "conv_tests_simple", feature = "conv_tests_tilewise"))]
         mod simple_tilewise {
             use super::*;
 
-            $crate::testgen_convolution_accelerated_precision!(SimpleSyncTilewiseConv<TMM>);
+            $crate::testgen_convolution_accelerated_precision!(SimpleSyncTilewiseConv);
         }
 
         #[cfg(all(
@@ -41,7 +41,7 @@ macro_rules! testgen_convolution_accelerated_algorithm {
         mod simple_async_cyclic {
             use super::*;
 
-            $crate::testgen_convolution_accelerated_precision!(SimpleAsyncCyclicConv<TMM>);
+            $crate::testgen_convolution_accelerated_precision!(SimpleAsyncCyclicConv);
         }
 
         #[cfg(all(
@@ -52,14 +52,14 @@ macro_rules! testgen_convolution_accelerated_algorithm {
         mod simple_async_strided {
             use super::*;
 
-            $crate::testgen_convolution_accelerated_precision!(SimpleAsyncStridedConv<TMM>);
+            $crate::testgen_convolution_accelerated_precision!(SimpleAsyncStridedConv);
         }
 
         #[cfg(all(feature = "conv_tests_simple", feature = "conv_tests_tma"))]
         mod simple_tma {
             use super::*;
 
-            $crate::testgen_convolution_accelerated_precision!(SimpleAsyncTmaConv<TMM>);
+            $crate::testgen_convolution_accelerated_precision!(SimpleAsyncTmaConv);
         }
 
         // Broken and can't currently figure out why
@@ -90,7 +90,7 @@ macro_rules! testgen_convolution_accelerated_algorithm {
         mod specialized_tma {
             use super::*;
 
-            $crate::testgen_convolution_accelerated_precision!(SpecializedTmaConv<TMM>);
+            $crate::testgen_convolution_accelerated_precision!(SpecializedTmaConv);
         }
     };
 }

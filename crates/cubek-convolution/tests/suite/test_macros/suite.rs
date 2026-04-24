@@ -14,7 +14,10 @@ use cubek_convolution::{
 use cubek_convolution::{forward::args::ConcreteArgs, kernels::algorithm::Algorithm};
 use cubek_matmul::launch::{InputArg, OutputArg};
 use cubek_matmul::{
-    components::global::{InputLoadFlow, LoadFlows},
+    components::{
+        global::{InputLoadFlow, LoadFlows},
+        tile_matmul::DispatchTileMatmul,
+    },
     definition::{MatmulElems, MatmulGlobalElems, SwizzleModes, TilingBlueprint, TilingScheme},
 };
 use cubek_matmul::{components::stage::PartitionBuffering, routines::Routine};
@@ -108,10 +111,14 @@ pub fn test_algo<
         address_type: AddressType::U32,
     };
 
-    let mut blueprint =
-        TilingBlueprint::builder(tiling_scheme, plane_dim, &problem.as_matmul_problem())
-            .shared_swizzle(swizzle)
-            .partition_buffering(partition_buffering);
+    let mut blueprint = TilingBlueprint::builder(
+        DispatchTileMatmul::Cmma,
+        tiling_scheme,
+        plane_dim,
+        &problem.as_matmul_problem(),
+    )
+    .shared_swizzle(swizzle)
+    .partition_buffering(partition_buffering);
 
     if A::IS_SPECIALIZED {
         blueprint = blueprint.load_specialization_config(LoadFlows {
