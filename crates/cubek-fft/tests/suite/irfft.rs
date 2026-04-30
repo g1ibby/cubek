@@ -14,7 +14,6 @@ use crate::suite::reference::irfft_ref;
 
 fn test_launch(client: ComputeClient<TestRuntime>, spectrum_shape: Vec<usize>, dim: usize) {
     let dtype = f32::as_type_native_unchecked().storage_type();
-    let spec_bins = spectrum_shape[dim];
     let mut signal_shape = spectrum_shape.clone();
     signal_shape[dim] = (spectrum_shape[dim] - 1) * 2;
 
@@ -41,7 +40,6 @@ fn test_launch(client: ComputeClient<TestRuntime>, spectrum_shape: Vec<usize>, d
         random_spectrum_im_handle.binding(),
         signal_handle.clone().binding(),
         dim,
-        spec_bins,
         dtype,
     )
     .into()

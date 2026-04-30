@@ -1,7 +1,7 @@
 use cubecl::{
     CubeElement, Runtime, TestRuntime, frontend::CubePrimitive, std::tensor::TensorHandle,
 };
-use cubek_fft::{irfft_launch, rfft_launch};
+use cubek_fft::{irfft_launch_padded, rfft_launch_padded};
 use cubek_test_utils::{HostData, HostDataType, HostDataVec};
 
 fn to_f32(host: HostData) -> Vec<f32> {
@@ -51,7 +51,7 @@ fn rfft_signal_len_matches_materialized_zero_padding() {
     let padded_re = empty_tensor(&client, vec![1, n_freq], dtype);
     let padded_im = empty_tensor(&client, vec![1, n_freq], dtype);
 
-    rfft_launch::<TestRuntime>(
+    rfft_launch_padded::<TestRuntime>(
         &client,
         virtual_signal.binding(),
         virtual_re.clone().binding(),
@@ -61,7 +61,7 @@ fn rfft_signal_len_matches_materialized_zero_padding() {
         dtype,
     )
     .unwrap();
-    rfft_launch::<TestRuntime>(
+    rfft_launch_padded::<TestRuntime>(
         &client,
         padded_signal.binding(),
         padded_re.clone().binding(),
@@ -128,7 +128,7 @@ fn irfft_spec_bins_matches_materialized_zero_padding() {
     let virtual_signal = empty_tensor(&client, vec![1, n_fft], dtype);
     let padded_signal = empty_tensor(&client, vec![1, n_fft], dtype);
 
-    irfft_launch::<TestRuntime>(
+    irfft_launch_padded::<TestRuntime>(
         &client,
         virtual_re_in.binding(),
         virtual_im_in.binding(),
@@ -138,7 +138,7 @@ fn irfft_spec_bins_matches_materialized_zero_padding() {
         dtype,
     )
     .unwrap();
-    irfft_launch::<TestRuntime>(
+    irfft_launch_padded::<TestRuntime>(
         &client,
         padded_re_in.binding(),
         padded_im_in.binding(),

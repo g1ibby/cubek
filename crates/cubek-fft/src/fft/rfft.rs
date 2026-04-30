@@ -48,15 +48,12 @@ pub fn rfft<R: Runtime>(
         client.empty(spectrum_shape.iter().product::<usize>() * dtype.size()),
         dtype,
     );
-    let signal_len = signal.shape()[dim];
-
     rfft_launch::<R>(
         &client,
         signal.binding(),
         spectrum_re.clone().binding(),
         spectrum_im.clone().binding(),
         dim,
-        signal_len,
         dtype,
     )
     .unwrap();
@@ -66,6 +63,27 @@ pub fn rfft<R: Runtime>(
 
 /// Launches the RFFT kernel.
 pub fn rfft_launch<R: Runtime>(
+    client: &ComputeClient<R>,
+    signal: TensorBinding<R>,
+    spectrum_re: TensorBinding<R>,
+    spectrum_im: TensorBinding<R>,
+    dim: usize,
+    dtype: StorageType,
+) -> Result<(), LaunchError> {
+    let signal_len = signal.shape[dim];
+    rfft_launch_padded::<R>(
+        client,
+        signal,
+        spectrum_re,
+        spectrum_im,
+        dim,
+        signal_len,
+        dtype,
+    )
+}
+
+/// Launches the RFFT kernel while treating samples at `signal_len..n_fft` as zero.
+pub fn rfft_launch_padded<R: Runtime>(
     client: &ComputeClient<R>,
     signal: TensorBinding<R>,
     spectrum_re: TensorBinding<R>,

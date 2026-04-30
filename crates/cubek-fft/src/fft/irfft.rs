@@ -41,15 +41,12 @@ pub fn irfft<R: Runtime>(
         client.empty(num_elems * dtype.size()),
         dtype,
     );
-    let spec_bins = spectrum_re.shape()[dim];
-
     irfft_launch::<R>(
         &client,
         spectrum_re.binding(),
         spectrum_im.binding(),
         signal.clone().binding(),
         dim,
-        spec_bins,
         dtype,
     )
     .unwrap();
@@ -59,6 +56,27 @@ pub fn irfft<R: Runtime>(
 
 /// Launches the IRFFT kernel.
 pub fn irfft_launch<R: Runtime>(
+    client: &ComputeClient<R>,
+    spectrum_re: TensorBinding<R>,
+    spectrum_im: TensorBinding<R>,
+    signal: TensorBinding<R>,
+    dim: usize,
+    dtype: StorageType,
+) -> Result<(), LaunchError> {
+    let spec_bins = spectrum_re.shape[dim];
+    irfft_launch_padded::<R>(
+        client,
+        spectrum_re,
+        spectrum_im,
+        signal,
+        dim,
+        spec_bins,
+        dtype,
+    )
+}
+
+/// Launches the IRFFT kernel while treating bins at `spec_bins..n_freq` as zero.
+pub fn irfft_launch_padded<R: Runtime>(
     client: &ComputeClient<R>,
     spectrum_re: TensorBinding<R>,
     spectrum_im: TensorBinding<R>,
