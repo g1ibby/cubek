@@ -39,6 +39,7 @@ fn test_launch(client: ComputeClient<TestRuntime>, signal_shape: Vec<usize>, dim
         spectrum_re_handle.clone().binding(),
         spectrum_im_handle.clone().binding(),
         dim,
+        signal_shape[dim],
         dtype,
     )
     .into()

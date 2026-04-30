@@ -3,3 +3,4 @@ mod irfft;
 mod reference;
 mod rfft;
 mod size_sweep;
+mod virtual_padding;

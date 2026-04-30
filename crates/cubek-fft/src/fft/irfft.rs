@@ -41,6 +41,7 @@ pub fn irfft<R: Runtime>(
         client.empty(num_elems * dtype.size()),
         dtype,
     );
+    let spec_bins = spectrum_re.shape()[dim];
 
     irfft_launch::<R>(
         &client,
@@ -48,6 +49,7 @@ pub fn irfft<R: Runtime>(
         spectrum_im.binding(),
         signal.clone().binding(),
         dim,
+        spec_bins,
         dtype,
     )
     .unwrap();
@@ -62,11 +64,17 @@ pub fn irfft_launch<R: Runtime>(
     spectrum_im: TensorBinding<R>,
     signal: TensorBinding<R>,
     dim: usize,
+    spec_bins: usize,
     dtype: StorageType,
 ) -> Result<(), LaunchError> {
     let n_fft = signal.shape[dim];
     assert!(n_fft.is_power_of_two(), "IRFFT requires power-of-2 length");
     assert!(n_fft >= 2, "IRFFT requires n_fft >= 2");
+    let n_freq = n_fft / 2 + 1;
+    assert!(
+        spec_bins <= n_freq,
+        "spec_bins ({spec_bins}) must be <= n_fft / 2 + 1 ({n_freq})"
+    );
 
     let count: usize = signal
         .shape
@@ -80,7 +88,15 @@ pub fn irfft_launch<R: Runtime>(
     }
 
     if n_fft > SHARED_MEM_CAP {
-        return irfft_large_launch::<R>(client, spectrum_re, spectrum_im, signal, dim, dtype);
+        return irfft_large_launch::<R>(
+            client,
+            spectrum_re,
+            spectrum_im,
+            signal,
+            dim,
+            spec_bins,
+            dtype,
+        );
     }
 
     let log2_n = n_fft.trailing_zeros() as usize;
@@ -97,6 +113,7 @@ pub fn irfft_launch<R: Runtime>(
         spectrum_im.into_tensor_arg(),
         signal.into_tensor_arg(),
         count as u32,
+        spec_bins as u32,
         n_fft,
         log2_n,
         threads_per_cube,
@@ -111,6 +128,7 @@ fn irfft_kernel<F: Float>(
     spectrum_im: &Tensor<F>,
     signal: &mut Tensor<F>,
     num_windows: u32,
+    spec_bins: u32,
     #[comptime] n_fft: usize,
     #[comptime] log2_n: usize,
     #[comptime] threads_per_cube: usize,
@@ -134,12 +152,22 @@ fn irfft_kernel<F: Float>(
     while k < n_fft {
         let dst = bit_reverse(k, log2_n);
         if k < n_freq {
-            shared_re[dst] = spectrum_re_view[k];
-            shared_im[dst] = spectrum_im_view[k];
+            if k < spec_bins as usize {
+                shared_re[dst] = spectrum_re_view[k];
+                shared_im[dst] = spectrum_im_view[k];
+            } else {
+                shared_re[dst] = F::new(0.0);
+                shared_im[dst] = F::new(0.0);
+            }
         } else {
             let src_bin = n_fft - k;
-            shared_re[dst] = spectrum_re_view[src_bin];
-            shared_im[dst] = -spectrum_im_view[src_bin];
+            if src_bin < spec_bins as usize {
+                shared_re[dst] = spectrum_re_view[src_bin];
+                shared_im[dst] = -spectrum_im_view[src_bin];
+            } else {
+                shared_re[dst] = F::new(0.0);
+                shared_im[dst] = F::new(0.0);
+            }
         }
         k += threads_per_cube;
     }

@@ -54,6 +54,7 @@ pub(crate) fn rfft_large_launch<R: Runtime>(
     spectrum_re: TensorBinding<R>,
     spectrum_im: TensorBinding<R>,
     dim: usize,
+    signal_len: usize,
     dtype: StorageType,
 ) -> Result<(), LaunchError> {
     assert_eq!(
@@ -98,6 +99,7 @@ pub(crate) fn rfft_large_launch<R: Runtime>(
             packed_re.clone().binding().into_tensor_arg(),
             packed_im.clone().binding().into_tensor_arg(),
             (count * m) as u32,
+            signal_len as u32,
             m,
         );
     }
@@ -147,6 +149,7 @@ pub(crate) fn irfft_large_launch<R: Runtime>(
     spectrum_im: TensorBinding<R>,
     signal: TensorBinding<R>,
     dim: usize,
+    spec_bins: usize,
     dtype: StorageType,
 ) -> Result<(), LaunchError> {
     assert_eq!(
@@ -201,6 +204,7 @@ pub(crate) fn irfft_large_launch<R: Runtime>(
             packed_in_re.clone().binding().into_tensor_arg(),
             packed_in_im.clone().binding().into_tensor_arg(),
             (count * m) as u32,
+            spec_bins as u32,
             n_fft,
             m,
         );
@@ -250,6 +254,7 @@ fn rfft_pack_kernel<F: Float>(
     packed_re: &mut Tensor<F>,
     packed_im: &mut Tensor<F>,
     total: u32,
+    signal_len: u32,
     #[comptime] m: usize,
 ) {
     let pos = ABSOLUTE_POS;
@@ -259,8 +264,18 @@ fn rfft_pack_kernel<F: Float>(
     let k = pos % m;
     let window = pos / m;
     let base = window * (2 * m);
-    packed_re[pos] = signal[base + 2 * k];
-    packed_im[pos] = signal[base + 2 * k + 1];
+    let even = 2 * k;
+    let odd = even + 1;
+    if even < signal_len as usize {
+        packed_re[pos] = signal[base + even];
+    } else {
+        packed_re[pos] = F::new(0.0);
+    }
+    if odd < signal_len as usize {
+        packed_im[pos] = signal[base + odd];
+    } else {
+        packed_im[pos] = F::new(0.0);
+    }
 }
 
 /// Recover `X[0..N/2+1]` from `Y[0..M]` for the packed-real forward path.
@@ -348,6 +363,7 @@ fn irfft_pre_kernel<F: Float>(
     packed_re: &mut Tensor<F>,
     packed_im: &mut Tensor<F>,
     total: u32,
+    spec_bins: u32,
     #[comptime] n_fft: usize,
     #[comptime] m: usize,
 ) {
@@ -361,16 +377,30 @@ fn irfft_pre_kernel<F: Float>(
     let spec_base = window * n_freq;
 
     if k == 0 {
-        let x0_re = spectrum_re[spec_base];
-        let xm_re = spectrum_re[spec_base + m];
+        let mut x0_re = F::new(0.0);
+        if spec_bins > 0 {
+            x0_re = spectrum_re[spec_base];
+        }
+        let mut xm_re = F::new(0.0);
+        if m < spec_bins as usize {
+            xm_re = spectrum_re[spec_base + m];
+        }
         packed_re[pos] = F::new(0.5) * (x0_re + xm_re);
         packed_im[pos] = F::new(0.5) * (x0_re - xm_re);
     } else {
-        let x_re = spectrum_re[spec_base + k];
-        let x_im = spectrum_im[spec_base + k];
-        let xm_re = spectrum_re[spec_base + (m - k)];
-        let xm_im_raw = spectrum_im[spec_base + (m - k)];
-        let xm_im = -xm_im_raw; // conj(X[M-k])
+        let mut x_re = F::new(0.0);
+        let mut x_im = F::new(0.0);
+        if k < spec_bins as usize {
+            x_re = spectrum_re[spec_base + k];
+            x_im = spectrum_im[spec_base + k];
+        }
+        let mirror = m - k;
+        let mut xm_re = F::new(0.0);
+        let mut xm_im = F::new(0.0);
+        if mirror < spec_bins as usize {
+            xm_re = spectrum_re[spec_base + mirror];
+            xm_im = -spectrum_im[spec_base + mirror]; // conj(X[M-k])
+        }
 
         // Inverse twiddle W_N^{-k} = cos(2π k / N) + i sin(2π k / N).
         let two_pi = F::new(2.0 * PI);
