@@ -9,6 +9,7 @@ use crate::{
     fft::{
         FftMode,
         fft_parallel::{bit_reverse, fft_butterfly_parallel},
+        rfft_large::rfft_large_launch,
     },
     layout::BatchSignalLayout,
 };
@@ -68,7 +69,7 @@ pub fn rfft_launch<R: Runtime>(
     spectrum_re: TensorBinding<R>,
     spectrum_im: TensorBinding<R>,
     dim: usize,
-    _dtype: StorageType,
+    dtype: StorageType,
 ) -> Result<(), LaunchError> {
     let n_fft = signal.shape[dim];
     assert!(n_fft.is_power_of_two(), "RFFT requires power-of-2 length");
@@ -85,10 +86,9 @@ pub fn rfft_launch<R: Runtime>(
         return Ok(());
     }
 
-    assert!(
-        n_fft <= SHARED_MEM_CAP,
-        "large RFFT path is added in a later commit"
-    );
+    if n_fft > SHARED_MEM_CAP {
+        return rfft_large_launch::<R>(client, signal, spectrum_re, spectrum_im, dim, dtype);
+    }
 
     let log2_n = n_fft.trailing_zeros() as usize;
     let threads_per_cube = (n_fft / 2).min(MAX_UNITS_PER_CUBE).max(1);
