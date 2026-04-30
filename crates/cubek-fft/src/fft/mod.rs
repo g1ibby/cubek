@@ -1,4 +1,5 @@
 mod fft_inner;
+mod fft_parallel;
 mod irfft;
 mod rfft;
 
