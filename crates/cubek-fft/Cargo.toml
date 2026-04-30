@@ -26,3 +26,11 @@ cubek-test-utils = { path = "./../cubek-test-utils/", version = "=0.2.0-pre.4" }
 num-complex = "0.4.6"
 cubecl = { workspace = true, features = ["test-runtime"] }
 cubecl-common = { workspace = true }
+
+[[example]]
+name = "bench"
+path = "examples/bench.rs"
+
+[[example]]
+name = "size_probe"
+path = "examples/size_probe.rs"
