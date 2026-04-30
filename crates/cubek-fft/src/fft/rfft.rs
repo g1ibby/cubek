@@ -79,8 +79,7 @@ pub fn rfft_launch<R: Runtime>(
     }
 
     let cube_dim = CubeDim::new_single();
-    let cube_count =
-        cubecl::calculate_cube_count_elemwise(client, count, CubeDim::new_single());
+    let cube_count = cubecl::calculate_cube_count_elemwise(client, count, CubeDim::new_single());
     let vectorization = 1;
     let shape = signal.shape.as_slice()[dim];
 
