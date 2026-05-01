@@ -16,8 +16,7 @@
 //! The public API of this module is the single
 //! [`cfft_launch_any_size`] function which picks the right path.
 //!
-//! Only the last axis of the input is transformed (`dim = rank - 1`). The
-//! caller is responsible for allocating any scratch buffers; see
+//! The caller is responsible for allocating any scratch buffers; see
 //! `rfft_large` for the allocator shape contract.
 
 use core::f32::consts::PI;
@@ -218,15 +217,6 @@ fn cfft_four_step_launch<R: Runtime>(
     n_fft: usize,
     fft_mode: FftMode,
 ) -> Result<(), LaunchError> {
-    // TODO: generalize the four-step path to arbitrary axes. The packed-real
-    // callers currently transform the last axis, which keeps the scratch
-    // layout contiguous and the flat indexing below valid.
-    assert_eq!(
-        dim,
-        input_re.shape.len() - 1,
-        "four-step cfft only supports transforming the last axis",
-    );
-
     let (n1, n2) = factor_four_step(n_fft);
 
     // Scratch buffer, same shape as input. Two passes ping-pong through
@@ -267,6 +257,7 @@ fn cfft_four_step_launch<R: Runtime>(
             n2,
             log2_n1,
             threads_per_cube,
+            dim,
             fft_mode,
         );
     }
@@ -291,6 +282,7 @@ fn cfft_four_step_launch<R: Runtime>(
             n2,
             log2_n2,
             threads_per_cube,
+            dim,
             fft_mode,
         );
     }
@@ -312,6 +304,7 @@ fn cfft_four_step_launch<R: Runtime>(
             total as u32,
             n1,
             n2,
+            dim,
         );
     }
 
@@ -333,6 +326,7 @@ fn cfft_four_step_radix1_kernel<F: Float>(
     #[comptime] n2: usize,
     #[comptime] log2_n1: usize,
     #[comptime] threads_per_cube: usize,
+    #[comptime] dim: usize,
     #[comptime] fft_mode: FftMode,
 ) {
     let cube_pos = CUBE_POS;
@@ -342,9 +336,10 @@ fn cfft_four_step_radix1_kernel<F: Float>(
 
     let window = cube_pos / n2;
     let n2_idx = cube_pos - window * n2;
-    // Window base in the last-axis-contiguous tensors. Inner flat index is
-    // n1 * N2 + n2, so each window occupies N1 * N2 contiguous elements.
-    let window_base = window * (n1 * n2);
+    let input_re_view = input_re.view(BatchSignalLayout::new(input_re, window, dim));
+    let input_im_view = input_im.view(BatchSignalLayout::new(input_im, window, dim));
+    let mut scratch_re_view = scratch_re.view_mut(BatchSignalLayout::new(scratch_re, window, dim));
+    let mut scratch_im_view = scratch_im.view_mut(BatchSignalLayout::new(scratch_im, window, dim));
 
     let mut shared_re = SharedMemory::<F>::new(n1);
     let mut shared_im = SharedMemory::<F>::new(n1);
@@ -354,9 +349,9 @@ fn cfft_four_step_radix1_kernel<F: Float>(
     let mut i = UNIT_POS as usize;
     while i < n1 {
         let j = bit_reverse(i, log2_n1);
-        let flat = window_base + i * n2 + n2_idx;
-        shared_re[j] = input_re[flat];
-        shared_im[j] = input_im[flat];
+        let flat = i * n2 + n2_idx;
+        shared_re[j] = input_re_view[flat];
+        shared_im[j] = input_im_view[flat];
         i += threads_per_cube;
     }
     sync_cube();
@@ -383,9 +378,9 @@ fn cfft_four_step_radix1_kernel<F: Float>(
         let w_im = theta.sin();
         let ar = shared_re[k1];
         let ai = shared_im[k1];
-        let flat = window_base + k1 * n2 + n2_idx;
-        scratch_re[flat] = w_re * ar - w_im * ai;
-        scratch_im[flat] = w_re * ai + w_im * ar;
+        let flat = k1 * n2 + n2_idx;
+        scratch_re_view[flat] = w_re * ar - w_im * ai;
+        scratch_im_view[flat] = w_re * ai + w_im * ar;
         k1 += threads_per_cube;
     }
 }
@@ -402,6 +397,7 @@ fn cfft_four_step_radix2_kernel<F: Float>(
     #[comptime] n2: usize,
     #[comptime] log2_n2: usize,
     #[comptime] threads_per_cube: usize,
+    #[comptime] dim: usize,
     #[comptime] fft_mode: FftMode,
 ) {
     let cube_pos = CUBE_POS;
@@ -411,8 +407,9 @@ fn cfft_four_step_radix2_kernel<F: Float>(
 
     let window = cube_pos / n1;
     let k1 = cube_pos - window * n1;
-    let window_base = window * (n1 * n2);
-    let row_base = window_base + k1 * n2;
+    let row_base = k1 * n2;
+    let mut scratch_re_view = scratch_re.view_mut(BatchSignalLayout::new(scratch_re, window, dim));
+    let mut scratch_im_view = scratch_im.view_mut(BatchSignalLayout::new(scratch_im, window, dim));
 
     let mut shared_re = SharedMemory::<F>::new(n2);
     let mut shared_im = SharedMemory::<F>::new(n2);
@@ -420,8 +417,8 @@ fn cfft_four_step_radix2_kernel<F: Float>(
     let mut i = UNIT_POS as usize;
     while i < n2 {
         let j = bit_reverse(i, log2_n2);
-        shared_re[j] = scratch_re[row_base + i];
-        shared_im[j] = scratch_im[row_base + i];
+        shared_re[j] = scratch_re_view[row_base + i];
+        shared_im[j] = scratch_im_view[row_base + i];
         i += threads_per_cube;
     }
     sync_cube();
@@ -437,8 +434,8 @@ fn cfft_four_step_radix2_kernel<F: Float>(
 
     let mut k2 = UNIT_POS as usize;
     while k2 < n2 {
-        scratch_re[row_base + k2] = shared_re[k2];
-        scratch_im[row_base + k2] = shared_im[k2];
+        scratch_re_view[row_base + k2] = shared_re[k2];
+        scratch_im_view[row_base + k2] = shared_im[k2];
         k2 += threads_per_cube;
     }
 }
@@ -457,6 +454,7 @@ fn cfft_four_step_transpose_kernel<F: Float>(
     total: u32,
     #[comptime] n1: usize,
     #[comptime] n2: usize,
+    #[comptime] dim: usize,
 ) {
     let pos = ABSOLUTE_POS;
     if pos >= total as usize {
@@ -466,12 +464,16 @@ fn cfft_four_step_transpose_kernel<F: Float>(
     let m = comptime![n1 * n2];
     let pos_u = pos;
     let inner = pos_u % m;
-    let window_base = pos_u - inner;
+    let window = pos_u / m;
+    let scratch_re_view = scratch_re.view(BatchSignalLayout::new(scratch_re, window, dim));
+    let scratch_im_view = scratch_im.view(BatchSignalLayout::new(scratch_im, window, dim));
+    let mut output_re_view = output_re.view_mut(BatchSignalLayout::new(output_re, window, dim));
+    let mut output_im_view = output_im.view_mut(BatchSignalLayout::new(output_im, window, dim));
     // pos's inner index is the destination linear index k = k1 + k2 * N1.
     let k2 = inner / n1;
     let k1 = inner - k2 * n1;
-    let src = window_base + k1 * n2 + k2;
+    let src = k1 * n2 + k2;
 
-    output_re[pos_u] = scratch_re[src];
-    output_im[pos_u] = scratch_im[src];
+    output_re_view[inner] = scratch_re_view[src];
+    output_im_view[inner] = scratch_im_view[src];
 }

@@ -1,4 +1,5 @@
 use cubecl::{
+    CubeElement,
     client::ComputeClient,
     frontend::CubePrimitive,
     std::tensor::TensorHandle,
@@ -6,8 +7,8 @@ use cubecl::{
 };
 use cubek_fft::rfft_launch;
 use cubek_test_utils::{
-    self, ExecutionOutcome, HostData, HostDataType, TestInput, TestOutcome, ValidationResult,
-    assert_equals_approx,
+    self, ExecutionOutcome, HostData, HostDataType, HostDataVec, TestInput, TestOutcome,
+    ValidationResult, assert_equals_approx,
 };
 
 use crate::suite::reference::rfft_ref;
@@ -83,6 +84,13 @@ pub fn assert_rfft_result(
     }
 }
 
+fn to_f32(host: HostData) -> Vec<f32> {
+    match host.data {
+        HostDataVec::F32(v) => v,
+        _ => panic!("expected f32 host data"),
+    }
+}
+
 #[test]
 fn rfft_3d_axis_last() {
     let client = <TestRuntime as Runtime>::client(&Default::default());
@@ -113,6 +121,104 @@ fn rfft_4d_axis_1_strided() {
     let signal_shape = [5, 256, 6, 42].to_vec();
     let dim = 1;
     test_launch(client, signal_shape, dim);
+}
+
+#[test]
+fn rfft_shared_memory_cap_axis_1_strided() {
+    let client = <TestRuntime as Runtime>::client(&Default::default());
+    let signal_shape = [1, 4096, 1].to_vec();
+    let dim = 1;
+    test_launch(client, signal_shape, dim);
+}
+
+#[test]
+fn rfft_large_axis_1_strided() {
+    let client = <TestRuntime as Runtime>::client(&Default::default());
+    let signal_shape = [1, 8192, 1].to_vec();
+    let dim = 1;
+    test_launch(client, signal_shape, dim);
+}
+
+#[test]
+fn rfft_four_step_axis_1_strided() {
+    let client = <TestRuntime as Runtime>::client(&Default::default());
+    let signal_shape = [1, 16384, 1].to_vec();
+    let dim = 1;
+    test_launch(client, signal_shape, dim);
+}
+
+#[test]
+fn rfft_batched_large_axis_last() {
+    let client = <TestRuntime as Runtime>::client(&Default::default());
+    let signal_shape = [3, 8192].to_vec();
+    let dim = signal_shape.len() - 1;
+    test_launch(client, signal_shape, dim);
+}
+
+#[test]
+fn rfft_nyquist_bin_large_sizes() {
+    let client = <TestRuntime as Runtime>::client(&Default::default());
+    let dtype = f32::as_type_native_unchecked().storage_type();
+
+    for &n_fft in &[8192usize, 16384] {
+        let batch = 2;
+        let n_freq = n_fft / 2 + 1;
+        let signal_shape = [batch, n_fft].to_vec();
+        let spectrum_shape = [batch, n_freq].to_vec();
+
+        let signal_data: Vec<f32> = (0..batch)
+            .flat_map(|_| (0..n_fft).map(|i| if i % 2 == 0 { 1.0 } else { -1.0 }))
+            .collect();
+        let signal_handle = client.create_from_slice(f32::as_bytes(&signal_data));
+        let signal =
+            TensorHandle::<TestRuntime>::new_contiguous(signal_shape, signal_handle, dtype);
+        let spectrum_re = TestInput::builder(client.clone(), spectrum_shape.clone())
+            .dtype(dtype)
+            .zeros()
+            .generate_without_host_data();
+        let spectrum_im = TestInput::builder(client.clone(), spectrum_shape)
+            .dtype(dtype)
+            .zeros()
+            .generate_without_host_data();
+
+        rfft_launch::<TestRuntime>(
+            &client,
+            signal.binding(),
+            spectrum_re.clone().binding(),
+            spectrum_im.clone().binding(),
+            1,
+            dtype,
+        )
+        .unwrap();
+
+        let re = to_f32(HostData::from_tensor_handle(
+            &client,
+            spectrum_re,
+            HostDataType::F32,
+        ));
+        let im = to_f32(HostData::from_tensor_handle(
+            &client,
+            spectrum_im,
+            HostDataType::F32,
+        ));
+
+        for b in 0..batch {
+            let base = b * n_freq;
+            for k in 0..n_freq {
+                let expected = if k == n_fft / 2 { n_fft as f32 } else { 0.0 };
+                assert!(
+                    (re[base + k] - expected).abs() < 1.0,
+                    "n_fft={n_fft}, batch={b}, bin={k}: real={}, want {expected}",
+                    re[base + k],
+                );
+                assert!(
+                    im[base + k].abs() < 1.0,
+                    "n_fft={n_fft}, batch={b}, bin={k}: imag={}",
+                    im[base + k],
+                );
+            }
+        }
+    }
 }
 
 #[test]

@@ -104,6 +104,38 @@ fn irfft_4d_axis_2() {
 }
 
 #[test]
+fn irfft_shared_memory_cap_axis_1_strided() {
+    let client = <TestRuntime as Runtime>::client(&Default::default());
+    let spectrum_shape = [1, 2049, 1].to_vec();
+    let dim = 1;
+    test_launch(client, spectrum_shape, dim);
+}
+
+#[test]
+fn irfft_large_axis_1_strided() {
+    let client = <TestRuntime as Runtime>::client(&Default::default());
+    let spectrum_shape = [1, 4097, 1].to_vec();
+    let dim = 1;
+    test_launch(client, spectrum_shape, dim);
+}
+
+#[test]
+fn irfft_four_step_axis_1_strided() {
+    let client = <TestRuntime as Runtime>::client(&Default::default());
+    let spectrum_shape = [1, 8193, 1].to_vec();
+    let dim = 1;
+    test_launch(client, spectrum_shape, dim);
+}
+
+#[test]
+fn irfft_batched_large_axis_last() {
+    let client = <TestRuntime as Runtime>::client(&Default::default());
+    let spectrum_shape = [3, 4097].to_vec();
+    let dim = spectrum_shape.len() - 1;
+    test_launch(client, spectrum_shape, dim);
+}
+
+#[test]
 fn irfft_3d_batch_singleton_dim() {
     let client = <TestRuntime as Runtime>::client(&Default::default());
     let spectrum_shape = [22, 1, 1025].to_vec();

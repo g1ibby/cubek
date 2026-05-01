@@ -31,16 +31,18 @@
 //!
 //! Invariants:
 //! * `n_fft` power of two, `n_fft >= 4` (M >= 2 for the packed FFT).
-//! * The axis to transform is the last one — same simplification as the
-//!   four-step path. Callers wrap non-last-axis inputs with a transpose if
-//!   they need it.
 
 use core::f32::consts::PI;
 
 use cubecl::prelude::*;
-use cubecl::std::tensor::TensorHandle;
+use cubecl::std::tensor::{
+    AsView as _, AsViewExpand, AsViewMut as _, AsViewMutExpand, TensorHandle,
+};
 
-use crate::fft::{FftMode, cfft::cfft_launch_any_size};
+use crate::{
+    fft::{FftMode, cfft::cfft_launch_any_size},
+    layout::BatchSignalLayout,
+};
 
 /// Forward large-`n_fft` RFFT. Shapes:
 /// * `signal`: (..., n_fft) real.
@@ -53,14 +55,15 @@ pub(crate) fn rfft_large_launch<R: Runtime>(
     dim: usize,
     dtype: StorageType,
 ) -> Result<(), LaunchError> {
-    assert_eq!(
-        dim,
-        signal.shape.len() - 1,
-        "large rfft only supports transforming the last axis",
-    );
     let n_fft = signal.shape[dim];
     let m = n_fft / 2;
-    let count: usize = signal.shape.iter().take(dim).product();
+    let count: usize = signal
+        .shape
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| *i != dim)
+        .map(|(_, e)| *e)
+        .product();
 
     // Packed buffers of length M.
     let packed_shape: Vec<usize> = signal
@@ -95,6 +98,7 @@ pub(crate) fn rfft_large_launch<R: Runtime>(
             packed_im.clone().binding().into_tensor_arg(),
             (count * m) as u32,
             m,
+            dim,
         );
     }
 
@@ -127,6 +131,7 @@ pub(crate) fn rfft_large_launch<R: Runtime>(
             (count * n_freq) as u32,
             n_fft,
             m,
+            dim,
         );
     }
 
@@ -144,14 +149,15 @@ pub(crate) fn irfft_large_launch<R: Runtime>(
     dim: usize,
     dtype: StorageType,
 ) -> Result<(), LaunchError> {
-    assert_eq!(
-        dim,
-        signal.shape.len() - 1,
-        "large irfft only supports transforming the last axis",
-    );
     let n_fft = signal.shape[dim];
     let m = n_fft / 2;
-    let count: usize = signal.shape.iter().take(dim).product();
+    let count: usize = signal
+        .shape
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| *i != dim)
+        .map(|(_, e)| *e)
+        .product();
 
     let packed_shape: Vec<usize> = signal
         .shape
@@ -197,6 +203,7 @@ pub(crate) fn irfft_large_launch<R: Runtime>(
             (count * m) as u32,
             n_fft,
             m,
+            dim,
         );
     }
 
@@ -228,6 +235,7 @@ pub(crate) fn irfft_large_launch<R: Runtime>(
             signal.into_tensor_arg(),
             (count * m) as u32,
             m,
+            dim,
         );
     }
 
@@ -244,6 +252,7 @@ fn rfft_pack_kernel<F: Float>(
     packed_im: &mut Tensor<F>,
     total: u32,
     #[comptime] m: usize,
+    #[comptime] dim: usize,
 ) {
     let pos = ABSOLUTE_POS;
     if pos >= total as usize {
@@ -251,9 +260,11 @@ fn rfft_pack_kernel<F: Float>(
     }
     let k = pos % m;
     let window = pos / m;
-    let base = window * (2 * m);
-    packed_re[pos] = signal[base + 2 * k];
-    packed_im[pos] = signal[base + 2 * k + 1];
+    let signal_view = signal.view(BatchSignalLayout::new(signal, window, dim));
+    let mut packed_re_view = packed_re.view_mut(BatchSignalLayout::new(packed_re, window, dim));
+    let mut packed_im_view = packed_im.view_mut(BatchSignalLayout::new(packed_im, window, dim));
+    packed_re_view[k] = signal_view[2 * k];
+    packed_im_view[k] = signal_view[2 * k + 1];
 }
 
 /// Recover `X[0..N/2+1]` from `Y[0..M]` for the packed-real forward path.
@@ -275,6 +286,7 @@ fn rfft_post_kernel<F: Float>(
     total: u32,
     #[comptime] n_fft: usize,
     #[comptime] m: usize,
+    #[comptime] dim: usize,
 ) {
     let pos = ABSOLUTE_POS;
     if pos >= total as usize {
@@ -283,23 +295,28 @@ fn rfft_post_kernel<F: Float>(
     let n_freq = comptime![m + 1];
     let k = pos % n_freq;
     let window = pos / n_freq;
-    let packed_base = window * m;
+    let packed_re_view = packed_re.view(BatchSignalLayout::new(packed_re, window, dim));
+    let packed_im_view = packed_im.view(BatchSignalLayout::new(packed_im, window, dim));
+    let mut spectrum_re_view =
+        spectrum_re.view_mut(BatchSignalLayout::new(spectrum_re, window, dim));
+    let mut spectrum_im_view =
+        spectrum_im.view_mut(BatchSignalLayout::new(spectrum_im, window, dim));
 
     if k == 0 {
-        let y0_re = packed_re[packed_base];
-        let y0_im = packed_im[packed_base];
-        spectrum_re[pos] = y0_re + y0_im;
-        spectrum_im[pos] = F::new(0.0);
+        let y0_re = packed_re_view[0];
+        let y0_im = packed_im_view[0];
+        spectrum_re_view[k] = y0_re + y0_im;
+        spectrum_im_view[k] = F::new(0.0);
     } else if k == m {
-        let y0_re = packed_re[packed_base];
-        let y0_im = packed_im[packed_base];
-        spectrum_re[pos] = y0_re - y0_im;
-        spectrum_im[pos] = F::new(0.0);
+        let y0_re = packed_re_view[0];
+        let y0_im = packed_im_view[0];
+        spectrum_re_view[k] = y0_re - y0_im;
+        spectrum_im_view[k] = F::new(0.0);
     } else {
-        let a_re = packed_re[packed_base + k];
-        let a_im = packed_im[packed_base + k];
-        let b_re = packed_re[packed_base + (m - k)];
-        let b_im_raw = packed_im[packed_base + (m - k)];
+        let a_re = packed_re_view[k];
+        let a_im = packed_im_view[k];
+        let b_re = packed_re_view[m - k];
+        let b_im_raw = packed_im_view[m - k];
         let b_im = -b_im_raw; // conj(Y[M-k])
 
         // Forward twiddle W_N^k = cos(-2π k / N) + i sin(-2π k / N).
@@ -316,8 +333,8 @@ fn rfft_post_kernel<F: Float>(
         let one_minus_s = F::new(1.0) - s;
         let x_re = F::new(0.5) * (a_re * one_plus_s + a_im * c + b_re * one_minus_s - b_im * c);
         let x_im = F::new(0.5) * (a_im * one_plus_s - a_re * c + b_re * c + b_im * one_minus_s);
-        spectrum_re[pos] = x_re;
-        spectrum_im[pos] = x_im;
+        spectrum_re_view[k] = x_re;
+        spectrum_im_view[k] = x_im;
     }
 }
 
@@ -341,26 +358,29 @@ fn irfft_pre_kernel<F: Float>(
     total: u32,
     #[comptime] n_fft: usize,
     #[comptime] m: usize,
+    #[comptime] dim: usize,
 ) {
     let pos = ABSOLUTE_POS;
     if pos >= total as usize {
         terminate!();
     }
-    let n_freq = comptime![m + 1];
     let k = pos % m;
     let window = pos / m;
-    let spec_base = window * n_freq;
+    let spectrum_re_view = spectrum_re.view(BatchSignalLayout::new(spectrum_re, window, dim));
+    let spectrum_im_view = spectrum_im.view(BatchSignalLayout::new(spectrum_im, window, dim));
+    let mut packed_re_view = packed_re.view_mut(BatchSignalLayout::new(packed_re, window, dim));
+    let mut packed_im_view = packed_im.view_mut(BatchSignalLayout::new(packed_im, window, dim));
 
     if k == 0 {
-        let x0_re = spectrum_re[spec_base];
-        let xm_re = spectrum_re[spec_base + m];
-        packed_re[pos] = F::new(0.5) * (x0_re + xm_re);
-        packed_im[pos] = F::new(0.5) * (x0_re - xm_re);
+        let x0_re = spectrum_re_view[0];
+        let xm_re = spectrum_re_view[m];
+        packed_re_view[k] = F::new(0.5) * (x0_re + xm_re);
+        packed_im_view[k] = F::new(0.5) * (x0_re - xm_re);
     } else {
-        let x_re = spectrum_re[spec_base + k];
-        let x_im = spectrum_im[spec_base + k];
-        let xm_re = spectrum_re[spec_base + (m - k)];
-        let xm_im_raw = spectrum_im[spec_base + (m - k)];
+        let x_re = spectrum_re_view[k];
+        let x_im = spectrum_im_view[k];
+        let xm_re = spectrum_re_view[m - k];
+        let xm_im_raw = spectrum_im_view[m - k];
         let xm_im = -xm_im_raw; // conj(X[M-k])
 
         // Inverse twiddle W_N^{-k} = cos(2π k / N) + i sin(2π k / N).
@@ -381,8 +401,8 @@ fn irfft_pre_kernel<F: Float>(
         let one_minus_s = F::new(1.0) - s;
         let y_re = F::new(0.5) * (x_re * one_minus_s - x_im * c + xm_re * one_plus_s + xm_im * c);
         let y_im = F::new(0.5) * (x_im * one_minus_s + x_re * c - xm_re * c + xm_im * one_plus_s);
-        packed_re[pos] = y_re;
-        packed_im[pos] = y_im;
+        packed_re_view[k] = y_re;
+        packed_im_view[k] = y_im;
     }
 }
 
@@ -395,6 +415,7 @@ fn irfft_unpack_kernel<F: Float>(
     signal: &mut Tensor<F>,
     total: u32,
     #[comptime] m: usize,
+    #[comptime] dim: usize,
 ) {
     let pos = ABSOLUTE_POS;
     if pos >= total as usize {
@@ -402,8 +423,10 @@ fn irfft_unpack_kernel<F: Float>(
     }
     let k = pos % m;
     let window = pos / m;
-    let base = window * (2 * m);
+    let packed_re_view = packed_re.view(BatchSignalLayout::new(packed_re, window, dim));
+    let packed_im_view = packed_im.view(BatchSignalLayout::new(packed_im, window, dim));
+    let mut signal_view = signal.view_mut(BatchSignalLayout::new(signal, window, dim));
     let scale = F::new(1.0) / F::cast_from(m);
-    signal[base + 2 * k] = packed_re[pos] * scale;
-    signal[base + 2 * k + 1] = packed_im[pos] * scale;
+    signal_view[2 * k] = packed_re_view[k] * scale;
+    signal_view[2 * k + 1] = packed_im_view[k] * scale;
 }
