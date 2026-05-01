@@ -18,7 +18,7 @@ pub(crate) fn bit_reverse(i: usize, #[comptime] log2_n: usize) -> usize {
     #[unroll]
     for _ in 0..log2_n {
         j = (j << 1usize) | (x & 1usize);
-        x = x >> 1usize;
+        x >>= 1usize;
     }
     j
 }

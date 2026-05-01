@@ -40,7 +40,10 @@ use cubecl::std::tensor::{
 };
 
 use crate::{
-    fft::{FftMode, cfft::cfft_launch_any_size},
+    fft::{
+        FftMode,
+        cfft::{CfftBindings, cfft_launch_any_size},
+    },
     layout::BatchSignalLayout,
 };
 
@@ -105,10 +108,12 @@ pub(crate) fn rfft_large_launch<R: Runtime>(
     // Step 2: Y = FFT_M(y), in-place on the packed buffers.
     cfft_launch_any_size::<R>(
         client,
-        packed_re.clone().binding(),
-        packed_im.clone().binding(),
-        packed_re.clone().binding(),
-        packed_im.clone().binding(),
+        CfftBindings {
+            input_re: packed_re.clone().binding(),
+            input_im: packed_im.clone().binding(),
+            output_re: packed_re.clone().binding(),
+            output_im: packed_im.clone().binding(),
+        },
         dim,
         dtype,
         FftMode::Forward,
@@ -212,10 +217,12 @@ pub(crate) fn irfft_large_launch<R: Runtime>(
     // aliasing. (Small-path cfft aliases fine but we keep one code path.)
     cfft_launch_any_size::<R>(
         client,
-        packed_in_re.binding(),
-        packed_in_im.binding(),
-        packed_out_re.clone().binding(),
-        packed_out_im.clone().binding(),
+        CfftBindings {
+            input_re: packed_in_re.binding(),
+            input_im: packed_in_im.binding(),
+            output_re: packed_out_re.clone().binding(),
+            output_im: packed_out_im.clone().binding(),
+        },
         dim,
         dtype,
         FftMode::Inverse,

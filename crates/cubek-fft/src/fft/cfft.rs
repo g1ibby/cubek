@@ -45,6 +45,21 @@ pub(crate) const MAX_SHARED_N_FFT: usize = 4096;
 /// all bins by having each unit process multiple indices.
 const MAX_UNITS_PER_CUBE: usize = 256;
 
+pub(crate) struct CfftBindings<R: Runtime> {
+    pub(crate) input_re: TensorBinding<R>,
+    pub(crate) input_im: TensorBinding<R>,
+    pub(crate) output_re: TensorBinding<R>,
+    pub(crate) output_im: TensorBinding<R>,
+}
+
+#[derive(Clone, Copy)]
+struct CfftPlan {
+    dim: usize,
+    count: usize,
+    n_fft: usize,
+    fft_mode: FftMode,
+}
+
 /// Factor `n_fft = N1 * N2` for the four-step FFT. Both factors are powers
 /// of two, both `<= MAX_SHARED_N_FFT`, and the split is as balanced as
 /// possible.
@@ -78,18 +93,16 @@ pub(crate) fn factor_four_step(n_fft: usize) -> (usize, usize) {
 /// management).
 pub(crate) fn cfft_launch_any_size<R: Runtime>(
     client: &ComputeClient<R>,
-    input_re: TensorBinding<R>,
-    input_im: TensorBinding<R>,
-    output_re: TensorBinding<R>,
-    output_im: TensorBinding<R>,
+    bindings: CfftBindings<R>,
     dim: usize,
     dtype: StorageType,
     fft_mode: FftMode,
 ) -> Result<(), LaunchError> {
-    let n_fft = input_re.shape[dim];
+    let n_fft = bindings.input_re.shape[dim];
     assert!(n_fft.is_power_of_two(), "cfft needs power-of-two n_fft");
     assert!(n_fft >= 2);
-    let count: usize = input_re
+    let count: usize = bindings
+        .input_re
         .shape
         .iter()
         .enumerate()
@@ -99,48 +112,45 @@ pub(crate) fn cfft_launch_any_size<R: Runtime>(
     if count == 0 {
         return Ok(());
     }
+    let plan = CfftPlan {
+        dim,
+        count,
+        n_fft,
+        fft_mode,
+    };
 
     if n_fft <= MAX_SHARED_N_FFT {
-        cfft_shared_launch::<R>(
-            client, input_re, input_im, output_re, output_im, dim, count, n_fft, fft_mode,
-        )
+        cfft_shared_launch::<R>(client, bindings, plan)
     } else {
-        cfft_four_step_launch::<R>(
-            client, input_re, input_im, output_re, output_im, dim, dtype, count, n_fft, fft_mode,
-        )
+        cfft_four_step_launch::<R>(client, bindings, dtype, plan)
     }
 }
 
 fn cfft_shared_launch<R: Runtime>(
     client: &ComputeClient<R>,
-    input_re: TensorBinding<R>,
-    input_im: TensorBinding<R>,
-    output_re: TensorBinding<R>,
-    output_im: TensorBinding<R>,
-    dim: usize,
-    count: usize,
-    n_fft: usize,
-    fft_mode: FftMode,
+    bindings: CfftBindings<R>,
+    plan: CfftPlan,
 ) -> Result<(), LaunchError> {
-    let log2_n = n_fft.trailing_zeros() as usize;
-    let threads_per_cube = (n_fft / 2).min(MAX_UNITS_PER_CUBE).max(1);
+    let log2_n = plan.n_fft.trailing_zeros() as usize;
+    let threads_per_cube = (plan.n_fft / 2).clamp(1, MAX_UNITS_PER_CUBE);
     let cube_dim = CubeDim::new_1d(threads_per_cube as u32);
-    let cube_count = cubecl::calculate_cube_count_elemwise(client, count, CubeDim::new_single());
+    let cube_count =
+        cubecl::calculate_cube_count_elemwise(client, plan.count, CubeDim::new_single());
 
     cfft_shared_kernel::launch::<f32, R>(
         client,
         cube_count,
         cube_dim,
-        input_re.into_tensor_arg(),
-        input_im.into_tensor_arg(),
-        output_re.into_tensor_arg(),
-        output_im.into_tensor_arg(),
-        count as u32,
-        n_fft,
+        bindings.input_re.into_tensor_arg(),
+        bindings.input_im.into_tensor_arg(),
+        bindings.output_re.into_tensor_arg(),
+        bindings.output_im.into_tensor_arg(),
+        plan.count as u32,
+        plan.n_fft,
         log2_n,
         threads_per_cube,
-        dim,
-        fft_mode,
+        plan.dim,
+        plan.fft_mode,
     );
     Ok(())
 }
@@ -210,21 +220,15 @@ fn cfft_shared_kernel<F: Float>(
 /// `output_im` tensors receive this natural order.
 fn cfft_four_step_launch<R: Runtime>(
     client: &ComputeClient<R>,
-    input_re: TensorBinding<R>,
-    input_im: TensorBinding<R>,
-    output_re: TensorBinding<R>,
-    output_im: TensorBinding<R>,
-    dim: usize,
+    bindings: CfftBindings<R>,
     dtype: StorageType,
-    count: usize,
-    n_fft: usize,
-    fft_mode: FftMode,
+    plan: CfftPlan,
 ) -> Result<(), LaunchError> {
-    let (n1, n2) = factor_four_step(n_fft);
+    let (n1, n2) = factor_four_step(plan.n_fft);
 
     // Scratch buffer, same shape as input. Two passes ping-pong through
     // scratch and output; the transpose at the end lands in `output`.
-    let scratch_shape: Vec<usize> = input_re.shape.to_vec();
+    let scratch_shape: Vec<usize> = bindings.input_re.shape.to_vec();
     let elems: usize = scratch_shape.iter().product();
     let scratch_re = TensorHandle::<R>::new_contiguous(
         scratch_shape.clone(),
@@ -241,38 +245,38 @@ fn cfft_four_step_launch<R: Runtime>(
     // (window, n2). Reads from `input_*`, writes to `scratch_*` with fused
     // twiddle multiplication by W_N^{k1 * n2} for the inter-stage factor.
     {
-        let threads_per_cube = (n1 / 2).min(MAX_UNITS_PER_CUBE).max(1);
+        let threads_per_cube = (n1 / 2).clamp(1, MAX_UNITS_PER_CUBE);
         let log2_n1 = n1.trailing_zeros() as usize;
         let cube_dim = CubeDim::new_1d(threads_per_cube as u32);
         let cube_count =
-            cubecl::calculate_cube_count_elemwise(client, count * n2, CubeDim::new_single());
+            cubecl::calculate_cube_count_elemwise(client, plan.count * n2, CubeDim::new_single());
 
         cfft_four_step_radix1_kernel::launch::<f32, R>(
             client,
             cube_count,
             cube_dim,
-            input_re.into_tensor_arg(),
-            input_im.into_tensor_arg(),
+            bindings.input_re.into_tensor_arg(),
+            bindings.input_im.into_tensor_arg(),
             scratch_re.clone().binding().into_tensor_arg(),
             scratch_im.clone().binding().into_tensor_arg(),
-            (count * n2) as u32,
+            (plan.count * n2) as u32,
             n1,
             n2,
             log2_n1,
             threads_per_cube,
-            dim,
-            fft_mode,
+            plan.dim,
+            plan.fft_mode,
         );
     }
 
     // Step 2: contiguous FFT_{N2} along the n2 axis of (N1, N2). One cube
     // per (window, k1). Reads/writes scratch in place.
     {
-        let threads_per_cube = (n2 / 2).min(MAX_UNITS_PER_CUBE).max(1);
+        let threads_per_cube = (n2 / 2).clamp(1, MAX_UNITS_PER_CUBE);
         let log2_n2 = n2.trailing_zeros() as usize;
         let cube_dim = CubeDim::new_1d(threads_per_cube as u32);
         let cube_count =
-            cubecl::calculate_cube_count_elemwise(client, count * n1, CubeDim::new_single());
+            cubecl::calculate_cube_count_elemwise(client, plan.count * n1, CubeDim::new_single());
 
         cfft_four_step_radix2_kernel::launch::<f32, R>(
             client,
@@ -280,19 +284,19 @@ fn cfft_four_step_launch<R: Runtime>(
             cube_dim,
             scratch_re.clone().binding().into_tensor_arg(),
             scratch_im.clone().binding().into_tensor_arg(),
-            (count * n1) as u32,
+            (plan.count * n1) as u32,
             n1,
             n2,
             log2_n2,
             threads_per_cube,
-            dim,
-            fft_mode,
+            plan.dim,
+            plan.fft_mode,
         );
     }
 
     // Step 3: transpose (N1, N2) -> (N2, N1). Writes natural-order output.
     {
-        let total = count * n_fft;
+        let total = plan.count * plan.n_fft;
         let cube_dim = CubeDim::new_1d(256);
         let cube_count = cubecl::calculate_cube_count_elemwise(client, total, cube_dim);
 
@@ -302,12 +306,12 @@ fn cfft_four_step_launch<R: Runtime>(
             cube_dim,
             scratch_re.binding().into_tensor_arg(),
             scratch_im.binding().into_tensor_arg(),
-            output_re.into_tensor_arg(),
-            output_im.into_tensor_arg(),
+            bindings.output_re.into_tensor_arg(),
+            bindings.output_im.into_tensor_arg(),
             total as u32,
             n1,
             n2,
-            dim,
+            plan.dim,
         );
     }
 
