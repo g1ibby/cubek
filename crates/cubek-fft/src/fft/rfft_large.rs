@@ -1,17 +1,17 @@
 //! Large-`n_fft` RFFT / IRFFT via the packed-real trick.
 //!
-//! Packed-real FFT (e.g. Oppenheim & Schafer, §9.3) turns an N-point real
-//! FFT into an M=N/2 point *complex* FFT plus two elementwise passes. For
-//! our sizes (N = 8192, 16384), this means:
+//! Packed-real FFT turns an N-point real FFT into an M=N/2 point complex
+//! FFT plus two elementwise passes. With the current shared-memory cutoff,
+//! the large paths are:
 //!
 //! * N = 8192 → M = 4096 → single-pass shared-memory cfft (fast path).
 //! * N = 16384 → M = 8192 → four-step cfft (still fast, no global
 //!   ping-pong per stage).
 //!
-//! Compared to running a "real" FFT with a zeroed imaginary part, the
-//! packed form halves both FLOPs and memory traffic in the inner FFT —
-//! which makes the difference between "fits in 4096-shared" and "needs
-//! four-step" for N = 8192.
+//! Compared to running a complex FFT with a zeroed imaginary input, the
+//! packed form halves both FLOPs and memory traffic in the inner FFT. That
+//! lets N = 8192 use a single shared-memory CFFT of size 4096 instead of the
+//! four-step path.
 //!
 //! Forward `rfft` pipeline:
 //!   1. `rfft_pack_kernel` — pack real `x[0..N]` into complex

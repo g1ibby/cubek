@@ -34,12 +34,15 @@ use crate::{
     layout::BatchSignalLayout,
 };
 
-/// Size limit of the single-pass shared-memory path. Two `f32` buffers of
-/// length `n_fft` fit in 32 KB of threadgroup memory on Apple Silicon at
-/// `n_fft = 4096` (= 32 KB exactly). Above this the pipeline fails to
-/// launch and produces zeros.
+/// Portable size limit for the single-pass shared-memory path. The kernel
+/// allocates two `f32` shared buffers of length `n_fft`, so `n_fft = 4096`
+/// uses 2 * 4096 * 4 bytes = 32 KiB. Larger sizes use the packed-real /
+/// four-step path instead of relying on backend-specific larger workgroup
+/// memory limits.
 pub(crate) const MAX_SHARED_N_FFT: usize = 4096;
 
+/// Portable cap on the number of units in one cube. Larger FFTs still cover
+/// all bins by having each unit process multiple indices.
 const MAX_UNITS_PER_CUBE: usize = 256;
 
 /// Factor `n_fft = N1 * N2` for the four-step FFT. Both factors are powers
@@ -68,7 +71,7 @@ pub(crate) fn factor_four_step(n_fft: usize) -> (usize, usize) {
     (1 << log2_n1, 1 << log2_n2)
 }
 
-/// Entry point: complex FFT of `input` into `output`, along the last axis.
+/// Entry point: complex FFT of `input` into `output`, along `dim`.
 /// `input` and `output` must be contiguous and have identical shape. The
 /// caller may safely pass the same buffer for input and output (aliasing is
 /// allowed for the small path; the large path does its own scratch
@@ -440,7 +443,7 @@ fn cfft_four_step_radix2_kernel<F: Float>(
     }
 }
 
-/// Transpose (N1, N2) -> (N2, N1) in the last axis of each window.
+/// Transpose (N1, N2) -> (N2, N1) in each selected-axis window.
 /// Converts four-step output `X'[k1, k2]` at flat `k1*N2 + k2` into natural
 /// linear order `X[k]` at flat `k = k1 + k2*N1` (= `k2*N1 + k1`).
 ///
