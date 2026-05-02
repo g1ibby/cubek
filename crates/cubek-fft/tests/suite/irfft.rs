@@ -72,6 +72,25 @@ fn assert_irfft_result(
 }
 
 #[test]
+#[cfg(not(feature = "heavy"))]
+fn irfft_light_smoke_axis_last() {
+    let client = <TestRuntime as Runtime>::client(&Default::default());
+    let spectrum_shape = [1, 5].to_vec();
+    let dim = spectrum_shape.len() - 1;
+    test_launch(client, spectrum_shape, dim);
+}
+
+#[test]
+#[cfg(not(feature = "heavy"))]
+fn irfft_light_smoke_axis_1_strided() {
+    let client = <TestRuntime as Runtime>::client(&Default::default());
+    let spectrum_shape = [2, 5, 1].to_vec();
+    let dim = 1;
+    test_launch(client, spectrum_shape, dim);
+}
+
+#[test]
+#[cfg(feature = "heavy")]
 fn irfft_3d_last_axis() {
     let client = <TestRuntime as Runtime>::client(&Default::default());
     let spectrum_shape = [5, 2, 1025].to_vec();
@@ -80,6 +99,7 @@ fn irfft_3d_last_axis() {
 }
 
 #[test]
+#[cfg(feature = "heavy")]
 fn irfft_3d_axis_0() {
     let client = <TestRuntime as Runtime>::client(&Default::default());
     let spectrum_shape = [33, 2, 1024].to_vec();
@@ -88,6 +108,7 @@ fn irfft_3d_axis_0() {
 }
 
 #[test]
+#[cfg(feature = "heavy")]
 fn irfft_3d_axis_1() {
     let client = <TestRuntime as Runtime>::client(&Default::default());
     let spectrum_shape = [33, 5, 1024].to_vec();
@@ -96,6 +117,7 @@ fn irfft_3d_axis_1() {
 }
 
 #[test]
+#[cfg(feature = "heavy")]
 fn irfft_4d_axis_2() {
     let client = <TestRuntime as Runtime>::client(&Default::default());
     let spectrum_shape = [12, 8, 513, 4].to_vec();
@@ -140,6 +162,7 @@ fn irfft_batched_large_axis_last() {
 }
 
 #[test]
+#[cfg(feature = "heavy")]
 fn irfft_3d_batch_singleton_dim() {
     let client = <TestRuntime as Runtime>::client(&Default::default());
     let spectrum_shape = [22, 1, 1025].to_vec();
@@ -148,6 +171,7 @@ fn irfft_3d_batch_singleton_dim() {
 }
 
 #[test]
+#[cfg(feature = "heavy")]
 fn irfft_dispatch_more_than_wgpu_x_axis_limit() {
     let client = <TestRuntime as Runtime>::client(&Default::default());
     let spectrum_shape = [65_536, 2].to_vec();

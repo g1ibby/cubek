@@ -96,6 +96,25 @@ fn to_f32(host: HostData) -> Vec<f32> {
 }
 
 #[test]
+#[cfg(not(feature = "heavy"))]
+fn rfft_light_smoke_axis_last() {
+    let client = <TestRuntime as Runtime>::client(&Default::default());
+    let signal_shape = [1, 8].to_vec();
+    let dim = signal_shape.len() - 1;
+    test_launch(client, signal_shape, dim);
+}
+
+#[test]
+#[cfg(not(feature = "heavy"))]
+fn rfft_light_smoke_axis_1_strided() {
+    let client = <TestRuntime as Runtime>::client(&Default::default());
+    let signal_shape = [2, 8, 1].to_vec();
+    let dim = 1;
+    test_launch(client, signal_shape, dim);
+}
+
+#[test]
+#[cfg(feature = "heavy")]
 fn rfft_3d_axis_last() {
     let client = <TestRuntime as Runtime>::client(&Default::default());
     let signal_shape = [5, 2, 2048].to_vec();
@@ -104,6 +123,7 @@ fn rfft_3d_axis_last() {
 }
 
 #[test]
+#[cfg(feature = "heavy")]
 fn rfft_3d_axis_1_strided() {
     let client = <TestRuntime as Runtime>::client(&Default::default());
     let signal_shape = [5, 64, 1000].to_vec();
@@ -112,6 +132,7 @@ fn rfft_3d_axis_1_strided() {
 }
 
 #[test]
+#[cfg(feature = "heavy")]
 fn rfft_3d_axis_0_strided() {
     let client = <TestRuntime as Runtime>::client(&Default::default());
     let signal_shape = [128, 6, 1000].to_vec();
@@ -120,6 +141,7 @@ fn rfft_3d_axis_0_strided() {
 }
 
 #[test]
+#[cfg(feature = "heavy")]
 fn rfft_4d_axis_1_strided() {
     let client = <TestRuntime as Runtime>::client(&Default::default());
     let signal_shape = [5, 256, 6, 42].to_vec();
@@ -231,6 +253,7 @@ fn rfft_nyquist_bin_large_sizes() {
 }
 
 #[test]
+#[cfg(feature = "heavy")]
 fn rfft_3d_batch_singleton_dim() {
     let client = <TestRuntime as Runtime>::client(&Default::default());
     let signal_shape = [22, 1, 2048].to_vec();
@@ -239,6 +262,7 @@ fn rfft_3d_batch_singleton_dim() {
 }
 
 #[test]
+#[cfg(feature = "heavy")]
 fn rfft_dispatch_more_than_wgpu_x_axis_limit() {
     let client = <TestRuntime as Runtime>::client(&Default::default());
     let signal_shape = [65_536, 2].to_vec();
