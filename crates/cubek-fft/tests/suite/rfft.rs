@@ -97,7 +97,7 @@ fn to_f32(host: HostData) -> Vec<f32> {
 
 #[test]
 #[cfg(not(feature = "heavy"))]
-fn rfft_light_smoke_axis_last() {
+fn rfft_light_axis_last() {
     let client = <TestRuntime as Runtime>::client(&Default::default());
     let signal_shape = [1, 8].to_vec();
     let dim = signal_shape.len() - 1;
@@ -106,10 +106,37 @@ fn rfft_light_smoke_axis_last() {
 
 #[test]
 #[cfg(not(feature = "heavy"))]
-fn rfft_light_smoke_axis_1_strided() {
+fn rfft_light_axis_1_strided() {
     let client = <TestRuntime as Runtime>::client(&Default::default());
     let signal_shape = [2, 8, 1].to_vec();
     let dim = 1;
+    test_launch(client, signal_shape, dim);
+}
+
+#[test]
+#[cfg(not(feature = "heavy"))]
+fn rfft_light_axis_1_strided_trailing_batch() {
+    let client = <TestRuntime as Runtime>::client(&Default::default());
+    let signal_shape = [3, 8, 2].to_vec();
+    let dim = 1;
+    test_launch(client, signal_shape, dim);
+}
+
+#[test]
+#[cfg(not(feature = "heavy"))]
+fn rfft_light_axis_0_strided() {
+    let client = <TestRuntime as Runtime>::client(&Default::default());
+    let signal_shape = [8, 2].to_vec();
+    let dim = 0;
+    test_launch(client, signal_shape, dim);
+}
+
+#[test]
+#[cfg(not(feature = "heavy"))]
+fn rfft_light_axis_last_n16() {
+    let client = <TestRuntime as Runtime>::client(&Default::default());
+    let signal_shape = [1, 16].to_vec();
+    let dim = signal_shape.len() - 1;
     test_launch(client, signal_shape, dim);
 }
 

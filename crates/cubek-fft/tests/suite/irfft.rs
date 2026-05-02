@@ -73,7 +73,7 @@ fn assert_irfft_result(
 
 #[test]
 #[cfg(not(feature = "heavy"))]
-fn irfft_light_smoke_axis_last() {
+fn irfft_light_axis_last() {
     let client = <TestRuntime as Runtime>::client(&Default::default());
     let spectrum_shape = [1, 5].to_vec();
     let dim = spectrum_shape.len() - 1;
@@ -82,10 +82,37 @@ fn irfft_light_smoke_axis_last() {
 
 #[test]
 #[cfg(not(feature = "heavy"))]
-fn irfft_light_smoke_axis_1_strided() {
+fn irfft_light_axis_1_strided() {
     let client = <TestRuntime as Runtime>::client(&Default::default());
     let spectrum_shape = [2, 5, 1].to_vec();
     let dim = 1;
+    test_launch(client, spectrum_shape, dim);
+}
+
+#[test]
+#[cfg(not(feature = "heavy"))]
+fn irfft_light_axis_1_strided_trailing_batch() {
+    let client = <TestRuntime as Runtime>::client(&Default::default());
+    let spectrum_shape = [3, 5, 2].to_vec();
+    let dim = 1;
+    test_launch(client, spectrum_shape, dim);
+}
+
+#[test]
+#[cfg(not(feature = "heavy"))]
+fn irfft_light_axis_0_strided() {
+    let client = <TestRuntime as Runtime>::client(&Default::default());
+    let spectrum_shape = [5, 2].to_vec();
+    let dim = 0;
+    test_launch(client, spectrum_shape, dim);
+}
+
+#[test]
+#[cfg(not(feature = "heavy"))]
+fn irfft_light_axis_last_n16() {
+    let client = <TestRuntime as Runtime>::client(&Default::default());
+    let spectrum_shape = [1, 9].to_vec();
+    let dim = spectrum_shape.len() - 1;
     test_launch(client, spectrum_shape, dim);
 }
 
