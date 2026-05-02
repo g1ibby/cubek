@@ -160,4 +160,5 @@ fn irfft_kernel<F: Float>(
         signal_view[i] = shared_re[i] * scale;
         i += threads_per_cube;
     }
+    sync_cube();
 }

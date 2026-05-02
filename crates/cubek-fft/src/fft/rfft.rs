@@ -162,4 +162,5 @@ fn rfft_kernel<F: Float>(
         spectrum_im_view[k] = shared_im[k];
         k += threads_per_cube;
     }
+    sync_cube();
 }
