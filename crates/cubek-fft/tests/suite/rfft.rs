@@ -1,14 +1,17 @@
+#[cfg(feature = "heavy")]
+use cubecl::CubeElement;
 use cubecl::{
-    CubeElement,
     client::ComputeClient,
     frontend::CubePrimitive,
     std::tensor::TensorHandle,
     {Runtime, TestRuntime},
 };
 use cubek_fft::rfft_launch;
+#[cfg(feature = "heavy")]
+use cubek_test_utils::HostDataVec;
 use cubek_test_utils::{
-    self, ExecutionOutcome, HostData, HostDataType, HostDataVec, TestInput, TestOutcome,
-    ValidationResult, assert_equals_approx,
+    self, ExecutionOutcome, HostData, HostDataType, TestInput, TestOutcome, ValidationResult,
+    assert_equals_approx,
 };
 
 use cubek_fft::cpu_reference::rfft_ref;
@@ -84,6 +87,7 @@ pub fn assert_rfft_result(
     }
 }
 
+#[cfg(feature = "heavy")]
 fn to_f32(host: HostData) -> Vec<f32> {
     match host.data {
         HostDataVec::F32(v) => v,
@@ -124,6 +128,7 @@ fn rfft_4d_axis_1_strided() {
 }
 
 #[test]
+#[cfg(feature = "heavy")]
 fn rfft_shared_memory_cap_axis_1_strided() {
     let client = <TestRuntime as Runtime>::client(&Default::default());
     let signal_shape = [1, 4096, 1].to_vec();
@@ -132,6 +137,7 @@ fn rfft_shared_memory_cap_axis_1_strided() {
 }
 
 #[test]
+#[cfg(feature = "heavy")]
 fn rfft_large_axis_1_strided() {
     let client = <TestRuntime as Runtime>::client(&Default::default());
     let signal_shape = [1, 8192, 1].to_vec();
@@ -140,6 +146,7 @@ fn rfft_large_axis_1_strided() {
 }
 
 #[test]
+#[cfg(feature = "heavy")]
 fn rfft_four_step_axis_1_strided() {
     let client = <TestRuntime as Runtime>::client(&Default::default());
     let signal_shape = [1, 16384, 1].to_vec();
@@ -148,6 +155,7 @@ fn rfft_four_step_axis_1_strided() {
 }
 
 #[test]
+#[cfg(feature = "heavy")]
 fn rfft_batched_large_axis_last() {
     let client = <TestRuntime as Runtime>::client(&Default::default());
     let signal_shape = [3, 8192].to_vec();
@@ -156,6 +164,7 @@ fn rfft_batched_large_axis_last() {
 }
 
 #[test]
+#[cfg(feature = "heavy")]
 fn rfft_nyquist_bin_large_sizes() {
     let client = <TestRuntime as Runtime>::client(&Default::default());
     let dtype = f32::as_type_native_unchecked().storage_type();
