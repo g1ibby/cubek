@@ -251,7 +251,6 @@ fn assert_f32_close(actual: &[f32], expected: &[f32]) {
 }
 
 #[test]
-#[cfg(not(feature = "heavy"))]
 fn rfft_light_axis_last() {
     let client = <TestRuntime as Runtime>::client(&Default::default());
     let signal_shape = [1, 8].to_vec();
@@ -260,7 +259,6 @@ fn rfft_light_axis_last() {
 }
 
 #[test]
-#[cfg(not(feature = "heavy"))]
 fn rfft_light_axis_1_strided() {
     let client = <TestRuntime as Runtime>::client(&Default::default());
     let signal_shape = [2, 8, 1].to_vec();
@@ -269,7 +267,6 @@ fn rfft_light_axis_1_strided() {
 }
 
 #[test]
-#[cfg(not(feature = "heavy"))]
 fn rfft_light_axis_1_strided_trailing_batch() {
     let client = <TestRuntime as Runtime>::client(&Default::default());
     let signal_shape = [3, 8, 2].to_vec();
@@ -278,7 +275,6 @@ fn rfft_light_axis_1_strided_trailing_batch() {
 }
 
 #[test]
-#[cfg(not(feature = "heavy"))]
 fn rfft_light_axis_0_strided() {
     let client = <TestRuntime as Runtime>::client(&Default::default());
     let signal_shape = [8, 2].to_vec();
@@ -287,7 +283,6 @@ fn rfft_light_axis_0_strided() {
 }
 
 #[test]
-#[cfg(not(feature = "heavy"))]
 fn rfft_light_axis_last_n16() {
     let client = <TestRuntime as Runtime>::client(&Default::default());
     let signal_shape = [1, 16].to_vec();
@@ -296,14 +291,12 @@ fn rfft_light_axis_last_n16() {
 }
 
 #[test]
-#[cfg(not(feature = "heavy"))]
 fn rfft_virtual_padding_axis_1_matches_materialized_zero_padding() {
     let client = <TestRuntime as Runtime>::client(&Default::default());
     test_launch_padded(client, vec![2, 5, 3], 1, 5, 8);
 }
 
 #[test]
-#[cfg(not(feature = "heavy"))]
 fn rfft_virtual_padding_ignores_tail_after_signal_len() {
     let client = <TestRuntime as Runtime>::client(&Default::default());
     test_launch_padded(client, vec![2, 7, 3], 1, 5, 8);

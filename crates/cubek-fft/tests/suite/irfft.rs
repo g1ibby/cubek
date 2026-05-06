@@ -230,7 +230,6 @@ fn assert_f32_close(actual: &[f32], expected: &[f32]) {
 }
 
 #[test]
-#[cfg(not(feature = "heavy"))]
 fn irfft_light_axis_last() {
     let client = <TestRuntime as Runtime>::client(&Default::default());
     let spectrum_shape = [1, 5].to_vec();
@@ -239,7 +238,6 @@ fn irfft_light_axis_last() {
 }
 
 #[test]
-#[cfg(not(feature = "heavy"))]
 fn irfft_light_axis_1_strided() {
     let client = <TestRuntime as Runtime>::client(&Default::default());
     let spectrum_shape = [2, 5, 1].to_vec();
@@ -248,7 +246,6 @@ fn irfft_light_axis_1_strided() {
 }
 
 #[test]
-#[cfg(not(feature = "heavy"))]
 fn irfft_light_axis_1_strided_trailing_batch() {
     let client = <TestRuntime as Runtime>::client(&Default::default());
     let spectrum_shape = [3, 5, 2].to_vec();
@@ -257,7 +254,6 @@ fn irfft_light_axis_1_strided_trailing_batch() {
 }
 
 #[test]
-#[cfg(not(feature = "heavy"))]
 fn irfft_light_axis_0_strided() {
     let client = <TestRuntime as Runtime>::client(&Default::default());
     let spectrum_shape = [5, 2].to_vec();
@@ -266,7 +262,6 @@ fn irfft_light_axis_0_strided() {
 }
 
 #[test]
-#[cfg(not(feature = "heavy"))]
 fn irfft_light_axis_last_n16() {
     let client = <TestRuntime as Runtime>::client(&Default::default());
     let spectrum_shape = [1, 9].to_vec();
@@ -275,14 +270,12 @@ fn irfft_light_axis_last_n16() {
 }
 
 #[test]
-#[cfg(not(feature = "heavy"))]
 fn irfft_virtual_padding_axis_1_matches_materialized_zero_padding() {
     let client = <TestRuntime as Runtime>::client(&Default::default());
     test_launch_padded(client, vec![2, 3, 3], 1, 8);
 }
 
 #[test]
-#[cfg(not(feature = "heavy"))]
 fn irfft_virtual_padding_dc_only_matches_materialized_zero_padding() {
     let client = <TestRuntime as Runtime>::client(&Default::default());
     test_launch_padded(client, vec![2, 1, 3], 1, 8);

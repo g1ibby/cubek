@@ -59,7 +59,7 @@ pub(crate) fn rfft_large_launch<R: Runtime>(
     signal_len: usize,
     dtype: StorageType,
 ) -> Result<(), LaunchError> {
-    let n_fft = (spectrum_re.shape[dim] - 1) * 2;
+    let n_fft = signal.shape[dim];
     let m = n_fft / 2;
     let count: usize = signal
         .shape

@@ -90,19 +90,7 @@ pub fn irfft_launch_padded<R: Runtime>(
         spectrum_re.shape == spectrum_im.shape,
         "spectrum real and imaginary shapes must match"
     );
-    assert!(
-        spectrum_re.shape.len() == signal.shape.len(),
-        "spectrum and signal rank must match"
-    );
     assert!(dim < signal.shape.len(), "dim must be in bounds");
-    for axis in 0..signal.shape.len() {
-        if axis != dim {
-            assert!(
-                spectrum_re.shape[axis] == signal.shape[axis],
-                "spectrum and signal batch dimensions must match"
-            );
-        }
-    }
 
     let n_fft = signal.shape[dim];
     assert!(n_fft.is_power_of_two(), "IRFFT requires power-of-2 length");

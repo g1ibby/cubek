@@ -94,22 +94,10 @@ pub fn rfft_launch_padded<R: Runtime>(
     dtype: StorageType,
 ) -> Result<(), LaunchError> {
     assert!(
-        signal.shape.len() == spectrum_re.shape.len(),
-        "signal and spectrum rank must match"
-    );
-    assert!(
         spectrum_re.shape == spectrum_im.shape,
         "spectrum real and imaginary shapes must match"
     );
     assert!(dim < signal.shape.len(), "dim must be in bounds");
-    for axis in 0..signal.shape.len() {
-        if axis != dim {
-            assert!(
-                signal.shape[axis] == spectrum_re.shape[axis],
-                "signal and spectrum batch dimensions must match"
-            );
-        }
-    }
 
     assert!(
         spectrum_re.shape[dim] >= 2,
