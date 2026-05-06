@@ -182,24 +182,12 @@ fn irfft_kernel<F: Float>(
     let mut k = UNIT_POS as usize;
     while k < n_fft {
         let dst = bit_reverse(k, log2_n);
-        if k < n_freq {
-            if k < spec_bins as usize {
-                shared_re[dst] = spectrum_re_view[k];
-                shared_im[dst] = spectrum_im_view[k];
-            } else {
-                shared_re[dst] = F::new(0.0);
-                shared_im[dst] = F::new(0.0);
-            }
-        } else {
-            let src_bin = n_fft - k;
-            if src_bin < spec_bins as usize {
-                shared_re[dst] = spectrum_re_view[src_bin];
-                shared_im[dst] = -spectrum_im_view[src_bin];
-            } else {
-                shared_re[dst] = F::new(0.0);
-                shared_im[dst] = F::new(0.0);
-            }
-        }
+        let src_bin = select(k < n_freq, k, n_fft - k);
+        let active = src_bin < spec_bins as usize;
+        let src_bin = select(active, src_bin, 0);
+        let im_sign = select(k < n_freq, F::new(1.0), F::new(-1.0));
+        shared_re[dst] = select(active, spectrum_re_view[src_bin], F::new(0.0));
+        shared_im[dst] = select(active, spectrum_im_view[src_bin] * im_sign, F::new(0.0));
         k += threads_per_cube;
     }
     sync_cube();

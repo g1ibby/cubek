@@ -48,7 +48,7 @@ use crate::{
 };
 
 /// Forward large-`n_fft` RFFT. Shapes:
-/// * `signal`: (..., n_fft) real.
+/// * `signal`: (..., <= n_fft) real.
 /// * `spectrum_re`, `spectrum_im`: (..., n_fft/2 + 1) complex.
 pub(crate) fn rfft_large_launch<R: Runtime>(
     client: &ComputeClient<R>,
@@ -59,7 +59,7 @@ pub(crate) fn rfft_large_launch<R: Runtime>(
     signal_len: usize,
     dtype: StorageType,
 ) -> Result<(), LaunchError> {
-    let n_fft = signal.shape[dim];
+    let n_fft = (spectrum_re.shape[dim] - 1) * 2;
     let m = n_fft / 2;
     let count: usize = signal
         .shape
@@ -277,16 +277,12 @@ fn rfft_pack_kernel<F: Float>(
     let mut packed_im_view = packed_im.view_mut(BatchSignalLayout::new(packed_im, window, dim));
     let even = 2 * k;
     let odd = even + 1;
-    if even < signal_len as usize {
-        packed_re_view[k] = signal_view[even];
-    } else {
-        packed_re_view[k] = F::new(0.0);
-    }
-    if odd < signal_len as usize {
-        packed_im_view[k] = signal_view[odd];
-    } else {
-        packed_im_view[k] = F::new(0.0);
-    }
+    let even_active = even < signal_len as usize;
+    let odd_active = odd < signal_len as usize;
+    let even = select(even_active, even, 0);
+    let odd = select(odd_active, odd, 0);
+    packed_re_view[k] = select(even_active, signal_view[even], F::new(0.0));
+    packed_im_view[k] = select(odd_active, signal_view[odd], F::new(0.0));
 }
 
 /// Recover `X[0..N/2+1]` from `Y[0..M]` for the packed-real forward path.
@@ -395,40 +391,22 @@ fn irfft_pre_kernel<F: Float>(
     let mut packed_im_view = packed_im.view_mut(BatchSignalLayout::new(packed_im, window, dim));
 
     if k == 0 {
-        let x0_re = if spec_bins > 0 {
-            spectrum_re_view[0]
-        } else {
-            F::new(0.0)
-        };
-        let xm_re = if m < spec_bins as usize {
-            spectrum_re_view[m]
-        } else {
-            F::new(0.0)
-        };
+        let has_nyquist = m < spec_bins as usize;
+        let x0_re = spectrum_re_view[0];
+        let xm = select(has_nyquist, m, 0);
+        let xm_re = select(has_nyquist, spectrum_re_view[xm], F::new(0.0));
         packed_re_view[k] = F::new(0.5) * (x0_re + xm_re);
         packed_im_view[k] = F::new(0.5) * (x0_re - xm_re);
     } else {
-        let x_re = if k < spec_bins as usize {
-            spectrum_re_view[k]
-        } else {
-            F::new(0.0)
-        };
-        let x_im = if k < spec_bins as usize {
-            spectrum_im_view[k]
-        } else {
-            F::new(0.0)
-        };
+        let active = k < spec_bins as usize;
+        let src = select(active, k, 0);
+        let x_re = select(active, spectrum_re_view[src], F::new(0.0));
+        let x_im = select(active, spectrum_im_view[src], F::new(0.0));
         let mirror = m - k;
-        let xm_re = if mirror < spec_bins as usize {
-            spectrum_re_view[mirror]
-        } else {
-            F::new(0.0)
-        };
-        let xm_im_raw = if mirror < spec_bins as usize {
-            spectrum_im_view[mirror]
-        } else {
-            F::new(0.0)
-        };
+        let mirror_active = mirror < spec_bins as usize;
+        let mirror = select(mirror_active, mirror, 0);
+        let xm_re = select(mirror_active, spectrum_re_view[mirror], F::new(0.0));
+        let xm_im_raw = select(mirror_active, spectrum_im_view[mirror], F::new(0.0));
         let xm_im = -xm_im_raw; // conj(X[M-k])
 
         // Inverse twiddle W_N^{-k} = cos(2π k / N) + i sin(2π k / N).
